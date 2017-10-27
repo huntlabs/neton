@@ -37,6 +37,7 @@ class EventHistory {
     // scan enumerates events from the index history and stops at the first point
     // where the key matches.
     Event scan(string key, bool recursive,ulong index)  {
+        log_info("scan key from eventHistory : ",key,"  index :",index," histiry lastindex :",_lastIndex);
         synchronized( _mtx )
         {
              // index should be after the event history's StartIndex
@@ -55,7 +56,7 @@ class EventHistory {
 
             while(1) {
                 auto e = _queue.event(i);
-
+                 log_info("compare event from eventHistory : ",e.node().key);
                 if (!e.refresh) {
                     auto ok = (e.node().key == key);
 
@@ -74,6 +75,7 @@ class EventHistory {
                     }
 
                     if (ok ){
+                        log_info("find event from eventHistory : ",key);
                         return e ;
                     }
                 }
@@ -81,6 +83,7 @@ class EventHistory {
                 i = (i + 1) % _queue.capacity;
 
                 if (i == _queue.back) {
+                    log_info("not find event from eventHistory : ",key);
                     return null;
                 }
             }      

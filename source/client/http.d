@@ -134,51 +134,75 @@ class http : AsyncTcpBase
 
 	bool process_request(string url , string strbody)
 	{
-		// if(!NetonServer.instance()._node.isLeader())
-		// {
-		// 	auto leader = NetonServer.instance.leader();
-		// 	log_info("leader id : ", leader);
-		// 	auto http = HTTP();
+		if(!NetonServer.instance()._node.isLeader() && _requestMethod != RequestMethod.METHOD_GET)
+		{
+			// auto leader = NetonServer.instance.leader();
+			// log_info("leader id : ", leader);
+			// auto http = HTTP();
 
-		// 	// Put with data senders
-		// 	auto msg = strbody;
-		// 	http.contentLength = msg.length;
-		// 	http.onSend = (void[] data)
-		// 	{
-		// 		auto m = cast(void[])msg;
-		// 		size_t len = m.length > data.length ? data.length : m.length;
-		// 		if (len == 0) return len;
-		// 		data[0..len] = m[0..len];
-		// 		msg = msg[len..$];
-		// 		return len;
-		// 	};
+			// // Put with data senders
+			// auto msg = strbody;
+			// http.contentLength = msg.length;
+			// http.onSend = (void[] data)
+			// {
+			// 	auto m = cast(void[])msg;
+			// 	size_t len = m.length > data.length ? data.length : m.length;
+			// 	if (len == 0) return len;
+			// 	data[0..len] = m[0..len];
+			// 	msg = msg[len..$];
+			// 	return len;
+			// };
 
-		// 	// Track progress
-		// 	if(_requestMethod == RequestMethod.METHOD_GET)
-		// 		http.method = HTTP.Method.get;
-		// 	else if(_requestMethod == RequestMethod.METHOD_PUT)
-		// 		http.method = HTTP.Method.put;
-		// 	else if(_requestMethod == RequestMethod.METHOD_DELETE)
-		// 		http.method = HTTP.Method.del;
-		// 	string urlpath = "http://";
-		// 	foreach(peer;NetonConfig.instance.peersConf)
-		// 	{
-		// 		if(peer.id == leader)
-		// 		{
-		// 			urlpath ~= peer.ip;
-		// 			urlpath ~= ":";
-		// 			urlpath ~= to!string(peer.apiport);
-		// 		}
-		// 	}
-		// 	http.url = urlpath ~ url;
-		// 	http.onReceive = &this.onHttpRecive;
-		// 	http.onProgress = &this.onHttpProgress;
-		// 	http.perform();
+			// // Track progress
+			// if(_requestMethod == RequestMethod.METHOD_GET)
+			// 	http.method = HTTP.Method.get;
+			// else if(_requestMethod == RequestMethod.METHOD_PUT)
+			// 	http.method = HTTP.Method.put;
+			// else if(_requestMethod == RequestMethod.METHOD_DELETE)
+			// 	http.method = HTTP.Method.del;
+			// string urlpath = "http://";
+			// foreach(peer;NetonConfig.instance.peersConf)
+			// {
+			// 	if(peer.id == leader)
+			// 	{
+			// 		urlpath ~= peer.ip;
+			// 		urlpath ~= ":";
+			// 		urlpath ~= to!string(peer.apiport);
+			// 	}
+			// }
+			// http.url = urlpath ~ url;
+			// http.onReceive = &this.onHttpRecive;
+			// http.onProgress = &this.onHttpProgress;
+			// http.perform();
 
-		// 	NetonServer.instance.saveHttp(this);
+			// NetonServer.instance.saveHttp(this);
+			JSONValue  res;
+			try
+			{
+				res["action"] = "not leader";
+				
+				JSONValue  leader;
+				auto id = NetonServer.instance.leader();
+			    leader["id"] = id;
+				foreach(peer;NetonConfig.instance.peersConf)
+				{
+					if(peer.id == id)
+					{
+						leader["ip"] = peer.ip;
+						leader["apiport"]= peer.apiport;
+						break;
+					}
+				}
 
-		// 	return true;
-		// }
+				res["leader"] = leader;
+			}
+			catch (Exception e)
+			{
+				log_error("catch %s", e.msg);
+				res["error"] = e.msg;
+			}
+			return do_response(res.toString);	
+		}
 
 		_params.clear;
 		if(strbody.length > 0){
@@ -216,7 +240,9 @@ class http : AsyncTcpBase
 		{
 			return do_response("can not sovle " ~ url);
 		}
-		url = url[5..$];
+
+		if(url.length >= 5)
+		  url = url[5..$];
 		url = getSafeKey(url);
 
 		JSONValue jparam;

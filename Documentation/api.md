@@ -24,8 +24,9 @@ curl http://127.0.0.1:2110/keys/message -XPUT -d value="Hello world"
 ```json
 {
     "action": "set",
+    "netonIndex":1,
     "node": {
-        "dir"："false",
+        "dir":"false",
         "key": "/message",
         "value": "Hello world"
     }
@@ -44,6 +45,9 @@ neton uses a file-system-like structure to represent the key-value pairs, theref
 3. `node.value`: the value of the key after resolving the request.
 In this case, a successful request was made that attempted to change the node's value to `Hello world`.
 
+4. `node.netonIndex`: an index is a unique, monotonically-incrementing integer created for each change to neton.
+This specific index reflects the point in the neton state member at which a given key was created.
+
 
 ### Get the value of a key
 
@@ -56,8 +60,9 @@ curl http://127.0.0.1:2110/keys/message
 ```json
 {
     "action": "get",
+    "netonIndex":1,
     "node": {
-        "dir"："false",
+        "dir":"false",
         "key": "/message",
         "value": "Hello world"
     }
@@ -76,8 +81,9 @@ curl http://127.0.0.1:2110/keys/message -XPUT -d value="Hello neton"
 ```json
 {
     "action": "set",
+    "netonIndex":2,
     "node": {
-        "dir"："false",
+        "dir":"false",
         "key": "/message",
         "value": "Hello neton"
     }
@@ -95,6 +101,7 @@ curl http://127.0.0.1:2110/keys/message -XDELETE
 ```json
 {
     "action": "delete",
+    "netonIndex":1,
     "node": {
         "key": "/message",
     }
@@ -126,14 +133,40 @@ The first terminal should get the notification and return with the same response
 ```json
 {
     "action": "set",
+    "netonIdex":7,
     "node": {
-        "dir"："false",
+        "dir":"false",
         "key": "/foo",
         "value": "bar"
     }
 }
 ```
 
+However, the watch command can do more than this.
+Using the index, we can watch for commands that have happened in the past.
+This is useful for ensuring you don't miss events between watch commands.
+Typically, we watch again from the `netonIndex` + 1 of the node we got.
+
+Let's try to watch for the set command of index 7 again:
+
+```sh
+curl 'http://127.0.0.1:2110/keys/foo?wait=true&waitIndex=7'
+```
+
+The watch command returns immediately with the same response as previously.
+
+If we were to restart the watch from index 8 with:
+
+```sh
+curl 'http://127.0.0.1:2110/keys/foo?wait=true&waitIndex=8'
+```
+
+Then even if neton is on index 9 or 800, the first event to occur to the `/foo`
+key between 8 and the current index will be returned.
+
+**Note**: neton only keeps the responses of the most recent 1000 events across all neton keys.
+It is recommended to send the response to another thread to process immediately
+instead of blocking the watch while processing the result.
 
 ### Creating Directories
 
@@ -148,6 +181,7 @@ curl http://127.0.0.1:2110/keys/dir -XPUT -d dir=true
 ```json
 {
     "action": "create",
+    "netonIndex":1,
     "node": {
         "dir": true,
         "key": "/dir",
@@ -172,8 +206,9 @@ curl http://127.0.0.1:2110/keys/foo_dir/foo -XPUT -d value=bar
 ```json
 {
     "action": "set",
+    "netonIndex":2,
     "node": {
-        "dir"："false",
+        "dir":"false",
         "key": "/foo_dir/foo",
         "value": "bar"
     }
@@ -191,6 +226,7 @@ We should see the response as an array of items:
 ```json
 {
     "action": "get",
+    "netonIndex":2,
     "node": {
         "key": "/",
         "dir": "true",
@@ -200,7 +236,7 @@ We should see the response as an array of items:
                 "dir": "true"
             },
             {
-                "dir"："false",
+                "dir":"false",
                 "key": "/foo",
                 "value": "two",
             }
@@ -219,6 +255,7 @@ curl http://127.0.0.1:2110/keys/?recursive=true
 ```json
 {
     "action": "get",
+    "netonIndex":2,
     "node": {
         "key": "/",
         "dir": "true",
@@ -228,14 +265,14 @@ curl http://127.0.0.1:2110/keys/?recursive=true
                 "dir": "true",
                 "nodes": [
                     {
-                        "dir"："false",
+                        "dir":"false",
                         "key": "/foo_dir/foo",
                         "value": "bar",
                     }
                 ]
             },
             {
-                "dir"："false",
+                "dir":"false",
                 "key": "/foo",
                 "value": "two",
             }
@@ -257,6 +294,7 @@ curl http://127.0.0.1:2110/keys/dir?recursive=true -XDELETE
 ```json
 {
     "action": "delete",
+    "netonIndex":2,
     "node": {
         "dir": "true",
         "key": "/dir",

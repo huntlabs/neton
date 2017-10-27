@@ -106,6 +106,7 @@ class NetonServer
 		{
 			JSONValue  j;
 			j["action"] = e.action;
+			j["netonIndex"] = Store.instance.Index();
 			JSONValue  node;
 			auto value = e.nodeValue();
 			if(value.length != 0)
@@ -149,7 +150,10 @@ class NetonServer
 									recursive = param["recursive"].str == "true"? true:false;
 								if(param.type == JSON_TYPE.OBJECT && ("wait" in param) && param["wait"].str == "true")
 								{
-									auto w = Store.instance.Watch(command.Key,recursive,false,0);
+									ulong waitIndex = 0;
+									if("waitIndex" in param)
+										waitIndex = to!ulong(param["waitIndex"].str);
+									auto w = Store.instance.Watch(command.Key,recursive,false,waitIndex);
 									w.setHttpHash(command.Hash);
 									_watchers ~= w;
 									iswatch = true;
@@ -340,7 +344,7 @@ class NetonServer
 		log_info("loading WAL at term ", walsnap.term," and index ",walsnap.index);
 
 		_wal = new WAL(_waldir,walsnap,true);
-		log_info("ready to loading WAL at term ");
+		
 		if (_wal is null) {
 			log_error("raftexample: error loading wal ", _ID);
 		}
@@ -560,7 +564,7 @@ class NetonServer
 						}
 						_request.remove(w.hash);
 					}
-					w.Remove();
+					removeWatcher(w.hash);
 				}
 			}
 		}
@@ -572,6 +576,11 @@ class NetonServer
 		auto http = (hash in _request);
 		if(http != null)
 			_request.remove(hash);
+		removeWatcher(hash);
+	}
+
+	void removeWatcher(size_t hash)
+	{
 		foreach( w ; _watchers)
 		{
 			if(w.hash == hash)

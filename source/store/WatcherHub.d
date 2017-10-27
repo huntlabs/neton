@@ -129,11 +129,11 @@ class WatcherHub {
     }
 
     void notifyWatchers(Event e, string nodePath , bool deleted) {
-       log_info("---- notifyWatchers : ", nodePath);
+       //log_info("---- notifyWatchers : ", nodePath);
         synchronized(_mutex)
         {
             if ((nodePath in _watchersMap) !is null) {
-                log_info("---- in map--- : ",nodePath);
+               // log_info("---- in map--- : ",nodePath);
                 auto wl = _watchersMap[nodePath];
 
                 auto range = wl[]; 
@@ -141,7 +141,7 @@ class WatcherHub {
                 for ( ; !range.empty; range.popFront()) 
                 { 
                     auto w = range.front; 
-                    log_info("---- have watcher for--- : ",nodePath, " is originalPath :",originalPath);
+                    //log_info("---- have watcher for--- : ",nodePath, " is originalPath :",originalPath);
                     if(/*originalPath && */ w.notify(e, originalPath, deleted))
                     {
                         if(!w.stream)
