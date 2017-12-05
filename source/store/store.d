@@ -7,6 +7,9 @@ import store.event;
 import store.watcher;
 import zhang2018.common.Log;
 import std.json;
+import std.uni;
+import store.util;
+
 
 struct TTLOptionSet{
 	uint ExpireTime ;
@@ -74,6 +77,7 @@ class Store : StoreInter
         return e;
     }
 
+    // set value
 	Event Set(string nodePath, bool dir, string value )
     {
      
@@ -95,6 +99,7 @@ class Store : StoreInter
         return e;
     }
 
+    // create dir
     Event CreateDir(string nodePath )
     {
         string error;
@@ -112,6 +117,7 @@ class Store : StoreInter
         return e;
     }
 
+    // watch key or dir
     Watcher Watch(string key , bool recursive, bool stream , ulong sinceIndex)  {
         
         auto keys = key;
@@ -144,6 +150,68 @@ class Store : StoreInter
             _kvStore.Remove(nodePath,recursive);
         }
 
+        return e;
+    }
+
+    Event Register(ref JSONValue server)
+    {
+        auto service = server["service"];
+        string id,name,key = service_prefix;
+        if(service.type == JSON_TYPE.OBJECT)
+        {
+            id = toLower(service["id"].str);
+            name = toLower(service["name"].str);
+            key ~= name;
+            key ~= "/";
+            key ~= id;
+        }
+        server["status"] = ServiceState.Passing;
+
+        string error;
+        auto ok= _kvStore.set(key,server.toString,error);
+
+        _currentIndex++;
+        auto e  = new Event(EventAction.Register, key, _currentIndex);
+        e.setNetonIndex( _currentIndex);
+
+        //log_info("---- set event : ", e);
+        if(ok)
+            _watcherHub.notify(e);
+        else
+            e.setErrorMsg(error);
+       
+        //log_info("---- notify finish : ", e.nodeValue());
+        return e;
+    }
+
+    Event Deregister(ref JSONValue server)
+    {
+        string id,name,key = service_prefix;
+        if(server.type == JSON_TYPE.OBJECT)
+        {
+            id = toLower(server["id"].str);
+            name = toLower(server["name"].str);
+            key ~= name;
+            key ~= "/";
+            key ~= id;
+        }
+
+        auto e  = new Event(EventAction.Deregister, key, _currentIndex+1);
+        e.setNetonIndex( _currentIndex+1);
+
+        auto value = getStringValue(key);
+        if(value.length > 0)
+        {
+            _currentIndex++;
+            _kvStore.Remove(key,false);
+            _watcherHub.notify(e);
+        }
+        else
+        {
+            e.setNetonIndex( _currentIndex);
+            e.setErrorMsg("service not found!");
+        }
+ 
         return e;
     }
 

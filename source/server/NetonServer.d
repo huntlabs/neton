@@ -33,6 +33,7 @@ import std.stdio;
 import std.json;
 import store.event;
 import store.watcher;
+import store.util;
 import std.algorithm.mutation;
 
 enum defaultSnapCount = 10;
@@ -108,9 +109,8 @@ class NetonServer
 			j["action"] = e.action;
 			j["netonIndex"] = Store.instance.Index();
 			JSONValue  node;
-			auto value = e.nodeValue();
-			if(value.length != 0)
-				node = parseJSON(value);
+			node = e.nodeValue();
+			
 
 			j["node"] = node;
 			return j.toString();
@@ -142,8 +142,8 @@ class NetonServer
 					{
 						case RequestMethod.METHOD_GET:
 							{
-								string value;
-								auto param = parseJSON(command.Params);
+								//string value;
+								auto param = tryGetJsonFormat(command.Params);
 								log_info("http GET param : ",param);
 								bool recursive = false;
 								if(param.type == JSON_TYPE.OBJECT &&  "recursive" in param)
@@ -161,7 +161,7 @@ class NetonServer
 								else
 								{
 									auto e = Store.instance.Get(command.Key,recursive,false);
-									value = e.nodeValue();
+									//value = e.nodeValue();
 									res = makeJsonString(e);
 								}
 															
@@ -169,7 +169,7 @@ class NetonServer
 							break;
 						case RequestMethod.METHOD_PUT:
 							{
-								auto param = parseJSON(command.Params);
+								auto param = tryGetJsonFormat(command.Params);
 								log_info("http PUT param : ",param);
 								bool dir = false;
 								if(param.type == JSON_TYPE.OBJECT &&  "dir" in param)
@@ -193,13 +193,42 @@ class NetonServer
 							break;
 						case RequestMethod.METHOD_DELETE:
 							{
-								auto param = parseJSON(command.Params);
+								auto param = tryGetJsonFormat(command.Params);
 								log_info("http DELETE param : ",param);
 								bool recursive = false;
 								if(param.type == JSON_TYPE.OBJECT &&  "recursive" in param)
 									recursive = param["recursive"].str == "true"? true:false;
 								auto e = Store.instance.Delete(command.Key,recursive);
 								res = makeJsonString(e);
+							}
+							break;
+						case RequestMethod.METHOD_POST:
+							{
+								auto param = tryGetJsonFormat(command.Params);
+								log_info("http post param : ",param);
+								bool recursive = false;
+								if(param.type == JSON_TYPE.OBJECT)
+								{
+									if(startsWith(command.Key,"/register"))
+									{
+										auto e = Store.instance.Register(param);
+										res = makeJsonString(e);	
+									}
+									else if(startsWith(command.Key,"/deregister"))
+									{
+										auto e = Store.instance.Deregister(param);
+										res = makeJsonString(e);
+									}
+									else
+									{
+										res = "can not sovle " ~ command.Key;
+									}
+								}
+								else
+								{
+									res = "can not sovle " ~ command.Key;
+								}
+								
 							}
 							break;
 						default :
@@ -390,7 +419,6 @@ class NetonServer
 
 	void start(bool join)
 	{
-
 		_ID	 			= NetonConfig.instance.selfConf.id;
 		_snapdir = snapDirPath(_ID);
 		_waldir = walDirPath(_ID);
@@ -600,7 +628,7 @@ class NetonServer
 
 	ulong leader()
 	{
-		return _node.leaderId();
+		return _node._raft._lead;
 	}
     
 	void saveHttp(http h)

@@ -59,7 +59,7 @@ class Decoder  {
             log_error("decode error : read data ");
             return -1;
         }
-
+        //log_info("----deserialize Record : ",data.length," ",data);
         rec = deserialize!Record(data);
         _lastValidOff += frameSizeBytes + dataLen;
         return res;
@@ -85,11 +85,21 @@ class Decoder  {
             log_warning("read file is eof ..");
             return 0;
         }
+
         ulong len =0;
-        for(int i =1 ; i < _uint64buf.length; i++)
-        {
-            len |= (((_uint64buf[i] << (8-i-1)) & 0xffffffffffffffff));
-        }
+        byte[] src = _uint64buf.dup;
+        src[0] = 0;
+        int offset=0;
+        len  = cast(ulong) ( (cast(ulong)(src[offset] & 0xFF)<<56)
+                |  (cast(ulong)(src[offset+1] & 0xFF)<<48)
+                |  (cast(ulong)(src[offset+2] & 0xFF)<<40)
+                |  (cast(ulong)(src[offset+3] & 0xFF)<<32)
+                |  (cast(ulong)(src[offset+4] & 0xFF)<<24)
+                |  (cast(ulong)(src[offset+5] & 0xFF)<<16)
+                |  (cast(ulong)(src[offset+6] & 0xFF)<<8)
+                |  cast(ulong)(src[offset+7] & 0xFF));
+
+        //log_info("------read head  :  ",_uint64buf, " len : ",len);
         return len;
      }
 

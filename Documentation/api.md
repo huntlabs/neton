@@ -12,6 +12,8 @@ Let's start neton:
 ./start.sh
 ```
 
+## KV Store 
+
 ### Setting the value of a key
 
 Let's set the first key-value pair in the datastore.
@@ -301,3 +303,33 @@ curl http://127.0.0.1:2110/keys/dir?recursive=true -XDELETE
     }
 }
 ```
+
+## Services
+
+### Register
+
+```sh
+curl http://127.0.0.1:2110/register -XPOST --data '{
+"service": {
+    "id": "redis1",
+    "name": "redis",
+    "address": "127.0.0.1",
+    "port": 8000
+  },
+  "check": {
+    "http": "localhost:8888",
+    "interval": 10
+    }
+}'
+```
+
+### Deregister
+
+```sh
+curl http://127.0.0.1:2110/deregister -XPOST --data '{
+ "id" : "redis1",
+ "name" : "redis"
+}'
+```
+
+## Health

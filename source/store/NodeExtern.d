@@ -1,9 +1,11 @@
 module store.NodeExtern;
 import std.experimental.allocator;
+import std.algorithm.searching;
 import store.store;
 import std.json;
 import zhang2018.common.Log;
 import std.array;
+import store.util;
 
 class NodeExtern {
 
@@ -44,6 +46,8 @@ class NodeExtern {
 
     void loadValue()
     {
+        if(_key.length == 0)
+            return;
         if(_recursive)
             _value = recurBuildNodeInfo(_key);
         else
@@ -58,8 +62,11 @@ class NodeExtern {
                 res["dir"] = node["dir"].str;
                 if(!dir)
                 {
-                    res["value"] = node["value"].str;
-                    _value = res.toString;
+                    if(startsWith(_key,service_prefix))
+                        res["value"] = tryGetJsonFormat(node["value"].str);
+                    else
+                        res["value"] = node["value"];
+                    _value = res;
                 }
                 else
                 {
@@ -67,7 +74,7 @@ class NodeExtern {
                     if(children.length == 0)
                     {
                         res["nodes"] = "[]";
-                        _value =  res.toString;
+                        _value =  res;
                     }
                     else
                     {
@@ -82,28 +89,34 @@ class NodeExtern {
                                 sub["key"]= subkey;
                                 sub["dir"]= j["dir"].str;
                                 if(j["dir"].str == "false")
-                                    sub["value"] = j["value"].str;
+                                {
+                                     if(startsWith(subkey,service_prefix))
+                                        sub["value"] = tryGetJsonFormat(j["value"].str);
+                                    else
+                                        sub["value"] = j["value"];
+                                }
+                                    
                                 subs ~= sub;
                             }
                         }
                         res["nodes"] = subs;
-                        _value = res.toString;
+                        _value = res;
                     }
                     
                 }
             }
             else
             {
-                _value = res.toString;
+                _value = res;
             }
         }
 
-        auto node = parseJSON(_value);
+        auto node = _value;
         if(node.type == JSON_TYPE.OBJECT && "dir" in node)
             _dir = node["dir"].str == "true"?true:false;
     }
 
-    string recurBuildNodeInfo(string key)
+    JSONValue recurBuildNodeInfo(string key)
     {
         JSONValue res;
         res["key"] = key;
@@ -114,8 +127,11 @@ class NodeExtern {
             res["dir"] = node["dir"].str;
             if(!dir)
             {
-                res["value"] = node["value"].str;
-                return res.toString;
+                if(startsWith(key,service_prefix))
+                    res["value"] = tryGetJsonFormat(node["value"].str);
+                else
+                    res["value"] = node["value"];
+                return res;
             }
             else
             {
@@ -123,7 +139,7 @@ class NodeExtern {
                 if(children.length == 0)
                 {
                     res["nodes"] = "[]";
-                    return res.toString;
+                    return res;
                 }
                 else
                 {
@@ -134,22 +150,22 @@ class NodeExtern {
                         if(subkey.length != 0)
                         {
                             auto sub = recurBuildNodeInfo(subkey);
-                            subs ~= parseJSON(sub);
+                            subs ~= sub;
                         }
                     }
                     res["nodes"] = subs;
-                    return res.toString;
+                    return res;
                 }
                 
             }
         }
         else
         {
-            return res.toString;
+            return res;
         }
     }
 
-    @property string value()
+    @property JSONValue value()
     {
         return _value;
     }
@@ -163,7 +179,7 @@ class NodeExtern {
 
     private :
             string _key;
-            string _value;
+            JSONValue _value;
             bool _dir;
             uint _expiration;
             long _ttl;

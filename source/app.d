@@ -8,7 +8,7 @@ import std.getopt;
 import std.exception;
 import std.stdio;
 import server.NetonConfig;
-
+import zhang2018.common.Serialize;
 
 bool initConfig(string[] args, out bool join)
 {

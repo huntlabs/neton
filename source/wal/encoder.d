@@ -40,7 +40,7 @@ class Encoder  {
         data = serialize(rec);
         //log_info("--------------debug 3-----",data," file name : ",_fw.name);
         ulong lenField= encodeFrameSize(data.length,WalType.recordType);
-        // log_info("--------------debug 4-----",lenField," file name : ",_fw.name);
+        //log_info("--------------debug 4-----",lenField," data.length : ",data.length);
         writeUint64(lenField);
         //log_info("--------------debug 5-----"," file name : ",_fw.name);
         _fw.rawWrite(data);

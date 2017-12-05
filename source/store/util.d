@@ -3,7 +3,9 @@ import std.stdio;
 import std.array;
 import std.string;
 import std.algorithm.searching;
+import std.json;
 
+const string service_prefix = "/service/";
 // if the key is "/foo/bar", it will produces result with path "/",
 // "/foo" and "/foo/bar"
 
@@ -64,4 +66,18 @@ string getParent(string key)
         return string.init;
     else
         return res;
+}
+
+JSONValue tryGetJsonFormat(string json)
+{
+    JSONValue value;
+    try
+    {
+        value = parseJSON(json);
+    }
+    catch(std.json.JSONException e)
+    {
+        return JSONValue(json);
+    }
+    return value;
 }

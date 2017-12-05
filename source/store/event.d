@@ -2,6 +2,14 @@ module store.event;
 
 import store.NodeExtern;
 import std.experimental.allocator;
+import std.json;
+
+enum ServiceState{
+    Passing   = "passing",
+    Warning   = "warning",
+    Critical  = "critical",
+    Maintenance = "maintenance",
+}
 
 enum EventAction {
 	Get              = "get",
@@ -9,6 +17,8 @@ enum EventAction {
 	Set              = "set",
 	Update           = "update",
 	Delete           = "delete",
+    Register         = "register",
+    Deregister       = "deregister",
 	CompareAndSwap   = "compareAndSwap",
 	CompareAndDelete = "compareAndDelete",
 	Expire           = "expire",
@@ -68,7 +78,7 @@ class Event{
         return _node.key;
     }
 
-    string nodeValue()
+    JSONValue nodeValue()
     {
         return _node.value;
     }

@@ -67,9 +67,16 @@ class http : AsyncTcpBase
 			long left = indexOf(str , "\r\n" , cast(size_t)pos);
 			if(pos == -1)
 				return false;
-			
-			strlength = cast(string)_buffer[cast(size_t)(pos + strlength.length) .. cast(size_t)left];
-			intlength = to!int(strlength);
+			try
+			{
+				strlength = cast(string)_buffer[cast(size_t)(pos + strlength.length) .. cast(size_t)left];
+				intlength = to!int(strlength);
+			}
+			catch (Exception e)
+			{
+				log_warning("request format exception : %s", e.msg);
+				return false;
+			}
 		}
 		
 		
@@ -110,8 +117,16 @@ class http : AsyncTcpBase
 				break;
 		}
 		url = strs[1];
-		strbody = cast(string)_buffer[cast(size_t)(header_pos + 4) .. $];
-		
+
+		try
+		{
+			strbody = cast(string)_buffer[cast(size_t)(header_pos + 4) .. $];
+		}
+		catch (Exception e)
+		{
+			log_warning("request format exception : %s", e.msg);
+			return false;
+		}
 		return true;
 	}
 
@@ -134,8 +149,8 @@ class http : AsyncTcpBase
 
 	bool process_request(string url , string strbody)
 	{
-		if(!NetonServer.instance()._node.isLeader() && _requestMethod != RequestMethod.METHOD_GET)
-		{
+		//if(!NetonServer.instance()._node.isLeader() /*&& _requestMethod != RequestMethod.METHOD_GET*/)
+		/*{
 			// auto leader = NetonServer.instance.leader();
 			// log_info("leader id : ", leader);
 			// auto http = HTTP();
@@ -202,7 +217,7 @@ class http : AsyncTcpBase
 				res["error"] = e.msg;
 			}
 			return do_response(res.toString);	
-		}
+		}*/
 
 		_params.clear;
 		if(strbody.length > 0){
@@ -236,13 +251,23 @@ class http : AsyncTcpBase
 
 		_hash = this.toHash();
 
-		if(!startsWith(url,"/keys"))
+		if(startsWith(url,"/keys"))
+		{
+		  	url = url[5..$];
+		}
+		else if(startsWith(url,"/register"))
+		{
+		    //url = url[9..$];
+		}
+		else if(startsWith(url,"/deregister"))
+		{
+			//url = url[11..$];
+		}
+		else
 		{
 			return do_response("can not sovle " ~ url);
 		}
 
-		if(url.length >= 5)
-		  url = url[5..$];
 		url = getSafeKey(url);
 
 		JSONValue jparam;
@@ -274,6 +299,12 @@ class http : AsyncTcpBase
 				return do_response("params key must not empty");
 
 			RequestCommand command = { Method:RequestMethod.METHOD_DELETE , Key: url , Hash:_hash,Params:jparam.toString};
+			NetonServer.instance().Propose(command , this);
+			return true;
+		}
+		else if(_requestMethod == RequestMethod.METHOD_POST)
+		{
+			RequestCommand command = { Method:RequestMethod.METHOD_POST , Key: url , Hash:_hash,Params:strbody};
 			NetonServer.instance().Propose(command , this);
 			return true;
 		}

@@ -18,7 +18,40 @@ import store.util;
 import std.algorithm.searching;
 import std.algorithm.mutation;
 
+/*
+ * service register/deregister store format
+ *
+ * key(/redis/redis1) : {
+	 "dir" : "false",
+	 "value" : "{
+		 "service" : {
+		 "id" : "redis1",
+		 "name" : "redis",
+		 "address" : "127.0.0.1",
+		 "port" : 8000
+	 	},
+		"check" : {
+			"http" : "http://127.0.0.1:8001",
+			"interval" : 10,
+			"timeout" : 30
+		},
+		"status" : "passing"
+	 }"	 
+ }
+ */
 
+/* 
+ * k/v store format
+ *
+ * key : {
+	 	"dir" : "false",
+		"value" : "some .."
+ }
+  key : {
+	  "dir" : "true",
+	  "children" : "/child1;/child2"
+  }
+ */
 class RocksdbStore
 {
 	this(ulong ID)
@@ -106,6 +139,8 @@ class RocksdbStore
 
 	string Lookup(string key)
 	{
+		if(key.length == 0)
+			return string.init;
 		if(_rocksdb is null)
 			return string.init;
 		
