@@ -22,7 +22,8 @@ enum RequestMethod
 	METHOD_POST = 2,
 	METHOD_PUT = 3,
 	METHOD_DELETE = 4,
-	METHOD_UNKNOWN = 5,
+	METHOD_UPDATESERVICE = 5,
+	METHOD_UNKNOWN = 6,
 };
 
 
@@ -221,7 +222,7 @@ class http : AsyncTcpBase
 
 		_params.clear;
 		if(strbody.length > 0){
-			
+			//log_info("http request body : ",strbody);
 			auto keyvalues = split(strbody, "&");
 			foreach( k ; keyvalues)
 			{
@@ -280,7 +281,7 @@ class http : AsyncTcpBase
 				return do_response("params key must not empty");
 	
 			RequestCommand command = { Method:RequestMethod.METHOD_GET , Key: url , Hash:_hash,Params:jparam.toString};
-			NetonServer.instance().Propose(command , this);
+			NetonServer.instance().ReadIndex(command , this);
 			return true;
 		}
 		else if(_requestMethod == RequestMethod.METHOD_PUT)

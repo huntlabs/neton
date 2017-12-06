@@ -22,6 +22,7 @@ import zhang2018.common.Log;
 import zhang2018.common.Serialize;
 import client.http;
 import server.NetonConfig;
+import server.health;
 
 import std.conv;
 import wal.wal;
@@ -35,6 +36,7 @@ import store.event;
 import store.watcher;
 import store.util;
 import std.algorithm.mutation;
+import core.sync.mutex;
 
 enum defaultSnapCount = 10;
 enum snapshotCatchUpEntriesN = 10000;
@@ -169,24 +171,41 @@ class NetonServer
 							break;
 						case RequestMethod.METHOD_PUT:
 							{
-								auto param = tryGetJsonFormat(command.Params);
-								log_info("http PUT param : ",param);
-								bool dir = false;
-								if(param.type == JSON_TYPE.OBJECT &&  "dir" in param)
-										dir = param["dir"].str == "true" ? true:false;
-
-								if(dir)
-								{
-									auto e = Store.instance.CreateDir(command.Key);
-									res = makeJsonString(e);
-								}
+								if(startsWith(command.Key,service_prefix[0..$-1]))
+									res = "the "~ service_prefix ~ " is remained";
 								else
 								{
-									string value ;
-									if(param.type == JSON_TYPE.OBJECT &&  "value" in param)
-										value = param["value"].str ;
-									auto e = Store.instance.Set(command.Key ,false, value);
-									res = makeJsonString(e);
+									auto param = tryGetJsonFormat(command.Params);
+									log_info("http PUT param : ",param);
+									bool dir = false;
+									if(param.type == JSON_TYPE.OBJECT &&  "dir" in param)
+											dir = param["dir"].str == "true" ? true:false;
+
+									if(dir)
+									{
+										auto e = Store.instance.CreateDir(command.Key);
+										res = makeJsonString(e);
+									}
+									else
+									{
+										string value ;
+										if(param.type == JSON_TYPE.OBJECT &&  "value" in param)
+											value = param["value"].str ;
+										auto e = Store.instance.Set(command.Key ,false, value);
+										res = makeJsonString(e);
+									}
+								}
+								
+							}
+							break;
+						case RequestMethod.METHOD_UPDATESERVICE:
+							{
+								auto param = tryGetJsonFormat(command.Params);
+								log_info("http update service param : ",param);
+								{
+									if(param.type == JSON_TYPE.OBJECT)
+										auto e = Store.instance.Set(command.Key ,false, param.toString);
+									//res = makeJsonString(e);
 								}
 								
 							}
@@ -212,12 +231,28 @@ class NetonServer
 									if(startsWith(command.Key,"/register"))
 									{
 										auto e = Store.instance.Register(param);
-										res = makeJsonString(e);	
+										res = makeJsonString(e);
+										if(e.isOk())
+										{
+											auto nd = e.nodeValue();
+											if("key" in nd && "value" in nd)
+											{
+												addHealthCheck(nd["key"].str,nd["value"]);
+											}
+										}	
 									}
 									else if(startsWith(command.Key,"/deregister"))
 									{
 										auto e = Store.instance.Deregister(param);
 										res = makeJsonString(e);
+										if(e.isOk)
+										{
+											auto nd = e.nodeValue();
+											if("key" in nd )
+											{
+												removeHealthCheck(nd["key"].str);
+											}
+										}
 									}
 									else
 									{
@@ -337,6 +372,21 @@ class NetonServer
 		}
 	}
 
+	void Propose(RequestCommand command )
+	{
+		auto err = _node.Propose(cast(string)serialize(command));
+		if( err != ErrNil)
+		{
+			log_error("---------",err);
+		}
+	}
+
+	void ReadIndex(RequestCommand command , http h)
+	{
+		_node.ReadIndex(cast(string)serialize(command));
+		_request[command.Hash] = h;
+	}
+
 	void ProposeConfChange(ConfChange cc)
 	{
 		auto err = _node.ProposeConfChange(cc);
@@ -422,6 +472,8 @@ class NetonServer
 		_ID	 			= NetonConfig.instance.selfConf.id;
 		_snapdir = snapDirPath(_ID);
 		_waldir = walDirPath(_ID);
+
+		_mutex = new Mutex();
 
 		if(!Exist(_snapdir))
 		{
@@ -564,9 +616,82 @@ class NetonServer
 			log_error("----- poll stop");
 			return;
 		}
+
+		//for readindex
+		foreach( r ; rd.ReadStates)
+		{
+			string res;
+			bool iswatch = false;
+			if( r.Index >= _appliedIndex)
+			{
+				RequestCommand command =  deserialize!RequestCommand(cast(byte[])r.RequestCtx);
+				auto h =  command.Hash in _request;
+				if(h == null){
+					continue;
+				}
+				auto param = tryGetJsonFormat(command.Params);
+				log_info("http GET param : ",param);
+				bool recursive = false;
+				if(param.type == JSON_TYPE.OBJECT &&  "recursive" in param)
+					recursive = param["recursive"].str == "true"? true:false;
+				if(param.type == JSON_TYPE.OBJECT && ("wait" in param) && param["wait"].str == "true")
+				{
+					ulong waitIndex = 0;
+					if("waitIndex" in param)
+						waitIndex = to!ulong(param["waitIndex"].str);
+					auto w = Store.instance.Watch(command.Key,recursive,false,waitIndex);
+					w.setHttpHash(command.Hash);
+					_watchers ~= w;
+					iswatch = true;
+				}
+				else
+				{
+					auto e = Store.instance.Get(command.Key,recursive,false);
+					//value = e.nodeValue();
+					res = makeJsonString(e);
+				}
+				if(!iswatch)
+				{
+					h.do_response(res);
+					h.close();
+					_request.remove(command.Hash);
+				}
+			}
+		}
+
 		maybeTriggerSnapshot();
 		_node.Advance(rd);
 
+		if(_node.isLeader())
+		{
+			if(leader() != _lastLeader)
+			{
+				log_warning("-----*****start health check *****-----");
+				_lastLeader = leader();
+				starHealthCheck();
+				loadServices(service_prefix[0..$-1]);
+			}
+		}
+		else
+		{
+			if(_healths.length > 0)
+			{
+				log_warning("-----*****stop health check *****-----");
+				synchronized(_mutex)
+				{
+					if(_healthPoll !is null)
+					{
+						_healthPoll.stop();
+						foreach(key;_healths.keys)
+						{
+							_healthPoll.delTimer(_healths[key].timerFd);
+						}
+					}
+					_healths.clear;
+					_healthPoll = null;
+				}
+			}
+		}
 	}
 
 	void scanWatchers()
@@ -636,6 +761,101 @@ class NetonServer
 		_request[h.toHash] = h;
 	}
 
+	void starHealthCheck()
+	{
+		_healthPoll = new Epoll(100);
+		_healthPoll.start();
+	}
+
+	void addHealthCheck(string key,ref JSONValue value)
+	{
+		if(!_node.isLeader)
+			return;
+		if(_healthPoll !is null)
+		{
+			 synchronized(_mutex)
+			 {
+				 auto health = new Health(key,value);
+				if(key in _healths)
+				{
+					auto oldHlt = _healths[key];
+					_healthPoll.delTimer(oldHlt.timerFd);
+				}
+				_healths[key] = health;
+				_healthPoll.addTimer(&health.onTimer,health.interval_ms(),WheelType.WHEEL_PERIODIC);
+			 }
+		}
+		log_info("-----*****health check num : ",_healths.length);
+	}
+
+	void removeHealthCheck(string key)
+	{
+		if(!_node.isLeader)
+			return;
+		synchronized(_mutex)
+		{
+			if(key in _healths)
+			{
+				auto health = _healths[key];
+				if(_healthPoll !is null)
+				{
+					_healthPoll.delTimer(health.timerFd);
+				}
+				_healths.remove(key);
+			}
+		}
+		
+		log_info("-----*****health check num : ",_healths.length);
+	}
+
+	void loadServices(string key)
+	{
+
+        JSONValue node = Store.instance().getJsonValue(key);
+        if(node.type != JSON_TYPE.NULL)
+        {
+            auto dir = node["dir"].str == "true" ? true:false;
+            if(!dir)
+            {
+                if(startsWith(key,service_prefix))
+				{
+					auto val = tryGetJsonFormat(node["value"].str);
+					addHealthCheck(key,val);
+				}
+                else
+				{
+				}
+                return ;
+            }
+            else
+            {
+                auto children = node["children"].str;
+                if(children.length == 0)
+                {
+                    return ;
+                }
+                else
+                {
+                    JSONValue[] subs;
+                    auto segments = split(children, ";");
+                    foreach(subkey;segments)
+                    {
+                        if(subkey.length != 0)
+                        {
+                            loadServices(subkey);
+                        }
+                    }
+                    return ;
+                }
+                
+            }
+        }
+        else
+        {
+            return ;
+        }
+	}
+
 	MemoryStorage							_storage;
 	Poll									_poll;
 	ulong									_ID;
@@ -659,5 +879,10 @@ class NetonServer
 	Snapshotter								_snapshotter;
 	WAL										_wal;
 	Watcher[]								_watchers;
+
+	Poll 									_healthPoll;	 	//eventloop for health check
+	Health[string]							_healths;
+	ulong 									_lastLeader=0;
+	Mutex									_mutex;
 }
 

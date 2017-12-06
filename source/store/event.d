@@ -112,6 +112,11 @@ class Event{
         _refresh = true;
     }
 
+    @property bool isOk()
+    {
+        return _errorMsg.length == 0;
+    }
+
      @property string error()
     {
         return _errorMsg;

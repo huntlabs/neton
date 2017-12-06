@@ -306,6 +306,8 @@ curl http://127.0.0.1:2110/keys/dir?recursive=true -XDELETE
 
 ## Services
 
+Neton allows services to register their instance information and to discover providers of a given service.
+
 ### Register
 
 ```sh
@@ -318,10 +320,23 @@ curl http://127.0.0.1:2110/register -XPOST --data '{
   },
   "check": {
     "http": "localhost:8888",
-    "interval": 10
+    "interval": 10,
+    "timeout" : 10
     }
 }'
 ```
+
+The register contains several attributes:
+
+1. `id`: it's a unique ID for subnode.
+
+2. `name`: service name.
+
+3. `address`:  It's used to specify a service-specific IP address.
+
+4. `port`: the port of service.
+
+5. `check`: These checks make an HTTP `GET` request every Interval (e.g. every 30 seconds) to the specified URL. The status of the service depends on the HTTP response code:  200 code is considered passing and anything else is a failure. By default, HTTP checks will be configured with a request timeout equal to the check interval, with a max of 10 seconds. It is possible to configure a custom HTTP check timeout value by specifying the `timeout` field in the check definition. 
 
 ### Deregister
 
@@ -332,4 +347,44 @@ curl http://127.0.0.1:2110/deregister -XPOST --data '{
 }'
 ```
 
+The Deregister contains several attributes:
+
+1. `id`: The unique ID for subnode.
+
+2. `name`: service name.
+
+### Check Services
+
+```sh
+curl http://127.0.0.1:2110/keys/service/{name}/{id}
+```
+The response object like this :
+
+```json
+{
+    "action": "get",
+    "netonIndex": 0,
+    "node": {
+        "dir": "false",
+        "key": "/service/redis/redis1",
+        "value": {
+            "check": {
+                "http": "redis1.putao.com",
+                "interval": 20,
+                "timeout": 10
+            },
+            "service": {
+                "address": "127.0.0.1",
+                "id": "redis1",
+                "name": "redis",
+                "port": 8001
+            },
+            "status": "passing"
+        }
+    }
+}
+```
+
 ## Health
+
+Neton support health checks.
