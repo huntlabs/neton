@@ -1,7 +1,7 @@
 module store.EventQueue;
 
 import store.event;
-import zhang2018.common.Log;
+import hunt.logging;
 
 class EventQueue
 {
@@ -25,11 +25,11 @@ class EventQueue
                 } else {
                     _size++;
                 } 
-               log_info("event queue size : ", _size," front : ",_front," back : ",_back);
+               logInfo("event queue size : ", _size," front : ",_front," back : ",_back);
             }
             catch (Exception e)
             {
-                log_error("catch %s", e.msg);
+                logError("catch %s", e.msg);
             }
 
         }

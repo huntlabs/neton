@@ -6,7 +6,7 @@ import std.range;
 import std.container.dlist;
 import core.sync.mutex;
 import std.experimental.allocator;
-import zhang2018.common.Log;
+import hunt.logging;
 import std.string;
 import store.watcher;
 import store.event;
@@ -58,7 +58,7 @@ class WatcherHub {
                     _watchersMap.remove(key);
                 }           
         }
-        log_info("---- remove fuc call  : ", key);
+        logInfo("---- remove fuc call  : ", key);
     }
     // Watch function returns a Watcher.
     // If recursive is true, the first change after index under key will be sent to the event channel of the watcher.
@@ -74,7 +74,7 @@ class WatcherHub {
         {
              // If the event exists in the known history, append the netonIndex and return immediately
                 if (event !is null) {
-                    log_info("---- find event from watcher : ", key);
+                    logInfo("---- find event from watcher : ", key);
                     auto ne = event.Clone();
                     ne.setNetonIndex(storeIndex);
                     w.insertEvent(ne);
@@ -83,14 +83,14 @@ class WatcherHub {
                 }
 
                 if (key in _watchersMap) { // add the new watcher to the back of the list
-                    log_info("---- key in _watchersMap : ", key);
+                    logInfo("---- key in _watchersMap : ", key);
                     auto l = _watchersMap[key];
                     l.insertBack(w);
                 } else { // create a new list and add the new watcher
                     WatcherList wl;
                     wl.insertBack(w);
                     _watchersMap[key] = wl;
-                    log_info("---- new key in _watchersMap : ", wl[]);
+                    logInfo("---- new key in _watchersMap : ", wl[]);
                 }
 
                 w.setRemoveFunc(key,&this.remove);
@@ -108,7 +108,7 @@ class WatcherHub {
         auto e = _eventHistory.addEvent(ne); // add event into the eventHistory
 
         auto segments = split(e.nodeKey(), "/");
-        log_info("---- segments : ", segments);
+        logInfo("---- segments : ", segments);
 
         // walk through all the segments of the path and notify the watchers
         // if the path is "/foo/bar", it will notify watchers with path "/",
@@ -129,11 +129,11 @@ class WatcherHub {
     }
 
     void notifyWatchers(Event e, string nodePath , bool deleted) {
-       //log_info("---- notifyWatchers : ", nodePath);
+       //logInfo("---- notifyWatchers : ", nodePath);
         synchronized(_mutex)
         {
             if ((nodePath in _watchersMap) !is null) {
-               // log_info("---- in map--- : ",nodePath);
+               // logInfo("---- in map--- : ",nodePath);
                 auto wl = _watchersMap[nodePath];
 
                 auto range = wl[]; 
@@ -141,7 +141,7 @@ class WatcherHub {
                 for ( ; !range.empty; range.popFront()) 
                 { 
                     auto w = range.front; 
-                    //log_info("---- have watcher for--- : ",nodePath, " is originalPath :",originalPath);
+                    //logInfo("---- have watcher for--- : ",nodePath, " is originalPath :",originalPath);
                     if(/*originalPath && */ w.notify(e, originalPath, deleted))
                     {
                         if(!w.stream)

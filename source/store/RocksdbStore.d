@@ -1,15 +1,15 @@
 module store.RocksdbStore;
 
-import protocol.Msg;
-import zhang2018.common.Serialize;
+// import protocol.Msg;
+import hunt.util.serialize;
 import core.stdc.stdio;
 import std.string;
 import std.stdio;
 import std.json;
 import std.experimental.allocator;
 import std.file;
-import raft.Node;
-import zhang2018.common.Log;
+// import raft.Node;
+import hunt.logging;
 
 import rocksdb.database;
 import rocksdb.options;
@@ -85,7 +85,7 @@ class RocksdbStore
 	//递归创建目录
 	void createDirWithRecur(string dir)
 	{
-		log_info("---create dir : ",dir);
+		logInfo("---create dir : ",dir);
 		auto parent = getParent(dir);
 		if(parent != string.init)
 		{
@@ -173,18 +173,18 @@ class RocksdbStore
 	JSONValue getJsonValue(string key)
 	{
 		auto jsonvalue = Lookup(key);
-		//log_info("---getJsonValue key : ",key,"  value : ",jsonvalue);
+		//logInfo("---getJsonValue key : ",key,"  value : ",jsonvalue);
 		JSONValue jvalue;
 		if(jsonvalue.length == 0)
 			return jvalue;
 		try
         {
-			//log_info("parse json value : ",jsonvalue);
+			//logInfo("parse json value : ",jsonvalue);
             jvalue = parseJSON(jsonvalue);
         }
         catch (Exception e)
         {
-            log_error("catch  error : %s", e.msg);
+            logError("catch  error : %s", e.msg);
         }
 
 		return jvalue;
@@ -267,16 +267,16 @@ class RocksdbStore
 
 		void setFileKeyValue(string key , string value)
 		{
-			//log_info("---key : ",key);
+			//logInfo("---key : ",key);
 			auto p = getParent(key);
-			//log_info("---parent key : ",p);
+			//logInfo("---parent key : ",p);
 			if(p != string.init)
 			{
 				if(!Exsit(p))
 					createDirWithRecur(p);
 			}
 			auto j = getJsonValue(p);
-			log_info("----json type :",j.type);
+			logInfo("----json type :",j.type);
 			auto children = j["children"].str();
 			auto segments = split(children, ";"); 
 			if(find(segments,key).empty)

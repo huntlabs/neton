@@ -8,7 +8,7 @@ import std.array;
 import core.stdc.stdio;
 import std.path;
 import std.algorithm.sorting;
-import zhang2018.common.Log;
+import hunt.logging;
 
 bool Exist(string dirpath)  {
 	return exists(dirpath);
@@ -80,7 +80,7 @@ long searchIndex(string[] names, ulong index) {
     if(names.length == 0)
         return res;
     ulong seq,idx;
-    log_info("wal names : ",names );
+    logInfo("wal names : ",names );
 	for(auto i= names.length-1; i>=0; i--)
     {
         parseWalName(names[i],seq,idx);

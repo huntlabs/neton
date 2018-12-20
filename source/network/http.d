@@ -1,19 +1,17 @@
-﻿module client.http;
-import zhang2018.dreactor.aio.AsyncTcpBase;
-import zhang2018.dreactor.event.Poll;
-import zhang2018.common.Log;
-import server.NetonServer;
+module network.http;
+
+
+
+import hunt.net;
+import hunt.raft;
+import hunt.logging;
+// import app.raft;
 import std.string;
 import std.conv;
-import std.net.curl;
-import protocol.Msg;
-import server.NetonConfig;
-import store.util;
+import std.format;
 import std.json;
-
-enum MAX_HTTP_REQUEST_BUFF = 1024 * 16;
-
-
+import server.NetonServer;
+import store.util;
 
 enum RequestMethod
 {
@@ -37,14 +35,24 @@ struct RequestCommand
 };
 
 
+enum MAX_HTTP_REQUEST_BUFF = 4096;
 
+// alias NetonServer = server.NetonServer.NetonServer;
 
-class http : AsyncTcpBase
+class HttpBase 
 {
-	this(Poll poll ,   byte[] buffer)
+	this(NetSocket sock, NetonServer netonServer )
 	{
-		super(poll);
-		readBuff = buffer;
+        this._sock = sock;
+		this._netonServer = netonServer;
+        sock.handler((in ubyte[] data){
+			onRead(data);
+		});
+        sock.closeHandler((){
+			onClose();
+		});
+
+
 	}
 
 	bool is_request_finish(ref bool finish, ref string url , ref string strbody)
@@ -75,7 +83,7 @@ class http : AsyncTcpBase
 			}
 			catch (Exception e)
 			{
-				log_warning("request format exception : %s", e.msg);
+				logWarning("request format exception : %s", e.msg);
 				return false;
 			}
 		}
@@ -125,7 +133,7 @@ class http : AsyncTcpBase
 		}
 		catch (Exception e)
 		{
-			log_warning("request format exception : %s", e.msg);
+			logWarning("request format exception : %s", e.msg);
 			return false;
 		}
 		return true;
@@ -133,17 +141,9 @@ class http : AsyncTcpBase
 
 	bool do_response(string strbody)
 	{
-		auto res = log_format("HTTP/1.1 200 OK\r\nServer: kiss\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s"
+		auto res = format("HTTP/1.1 200 OK\r\nServer: kiss\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s"
 			, strbody.length , strbody);
-		auto ret = doWrite(cast(byte[])res , null , 
-			delegate void(Object obj){
-				close();
-			});
-		
-		//log_info(" do_response " , ret);
-
-		if(ret == 1)
-			return false;
+		_sock.write(res);
 
 		return true;
 	}
@@ -153,7 +153,7 @@ class http : AsyncTcpBase
 		//if(!NetonServer.instance()._node.isLeader() /*&& _requestMethod != RequestMethod.METHOD_GET*/)
 		/*{
 			// auto leader = NetonServer.instance.leader();
-			// log_info("leader id : ", leader);
+			// logInfo("leader id : ", leader);
 			// auto http = HTTP();
 
 			// // Put with data senders
@@ -214,7 +214,7 @@ class http : AsyncTcpBase
 			}
 			catch (Exception e)
 			{
-				log_error("catch %s", e.msg);
+				logError("catch %s", e.msg);
 				res["error"] = e.msg;
 			}
 			return do_response(res.toString);	
@@ -222,7 +222,7 @@ class http : AsyncTcpBase
 
 		_params.clear;
 		if(strbody.length > 0){
-			//log_info("http request body : ",strbody);
+			//logInfo("http request body : ",strbody);
 			auto keyvalues = split(strbody, "&");
 			foreach( k ; keyvalues)
 			{
@@ -274,6 +274,7 @@ class http : AsyncTcpBase
 		JSONValue jparam;
 		foreach(key,value;_params)
 			jparam[key] = value;
+		logInfo("HTTP param : ",jparam);
 		if(_requestMethod == RequestMethod.METHOD_GET)
 		{
 			// auto key = "key" in _params;
@@ -336,36 +337,34 @@ class http : AsyncTcpBase
 		}
 	}
 
-
-	override bool doRead(byte[] data , int length)
+	void onRead(in ubyte[] data)
 	{
-		_buffer ~= data[0 .. length];
+		_buffer ~= data;
 		bool finish;
 		string strurl;
 		string strbody;
 		if(!is_request_finish(finish ,strurl,strbody ))
-			return false;
+			return ;
 
 		if(finish)
 		{
-			log_info("http request method :",_requestMethod);
-			log_info("http request data：",strbody);
-			return process_request(strurl , strbody);
+			process_request(strurl , strbody);
 		}
 		else if(_buffer.length >= MAX_HTTP_REQUEST_BUFF)
 		{
-			return false;
+			return ;
 		}
 
-		return true;
 	}
 
-	override bool onClose()
+	void close()
 	{
-		//log_info("-----http close ----");
+		_sock.close();
+	}
+
+	void onClose() {
 		NetonServer.instance.handleHttpClose(_hash);
-		super.onClose();
-		return true;
+		// super.onClose();
 	}
 
 	string[string] params()
@@ -383,7 +382,7 @@ class http : AsyncTcpBase
 	{
 		if(dlTotal == dlNow)
 		{
-			log_info("leader response data : ",cast(string)_httpRecvBuf);
+			logInfo("leader response data : ",cast(string)_httpRecvBuf);
 			do_response(cast(string)_httpRecvBuf);
 		}
 		return 0;
@@ -394,5 +393,9 @@ class http : AsyncTcpBase
 	private size_t 	_hash;
 	private RequestMethod _requestMethod;
 	private ubyte[] _httpRecvBuf;
+
+    // ubyte[]         buffer;
+	private NetSocket       _sock;
+	private NetonServer			_netonServer;
 }
 

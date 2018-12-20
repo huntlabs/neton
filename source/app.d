@@ -2,13 +2,14 @@
 
 
 import server.NetonServer;
-import zhang2018.common.Log;
+import hunt.logging;
+import core.thread;
 import std.conv;
 import std.getopt;
 import std.exception;
 import std.stdio;
 import server.NetonConfig;
-import zhang2018.common.Serialize;
+// import hunt.util.serialize;
 
 bool initConfig(string[] args, out bool join)
 {
@@ -28,7 +29,11 @@ bool initConfig(string[] args, out bool join)
 	}
 	
 	NetonConfig.instance.loadConf(confpath);
-	load_log_conf("./config/log.conf" , args[0] ~ to!string(NetonConfig.instance.selfConf().id));
+
+	LogConf conf;
+	conf.fileName = "neton.log" ~ to!string(NetonConfig.instance.selfConf().id);
+	logLoadConf(conf);
+	// load_log_conf("./config/log.conf" , args[0] ~ to!string(NetonConfig.instance.selfConf().id));
 
 	return true;
 }
@@ -42,8 +47,12 @@ int main(string[] argv)
 	}
 
     NetonServer.instance.start(join);
-	NetonServer.instance.wait();
-
+	// NetonServer.instance.wait();
+	// getchar();
+	// while(1)
+	// 	Thread.sleep(dur!"seconds"(1));
+	thread_joinAll();
+	writeln("**************stop");
 	return 0;
 }
 

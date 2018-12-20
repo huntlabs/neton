@@ -5,7 +5,7 @@ import store.WatcherHub;
 import store.RocksdbStore;
 import store.event;
 import store.watcher;
-import zhang2018.common.Log;
+import hunt.logging;
 import std.json;
 import std.uni;
 import store.util;
@@ -89,13 +89,13 @@ class Store : StoreInter
         auto e  = new Event(EventAction.Set, nodePath, _currentIndex);
         e.setNetonIndex( _currentIndex);
 
-        //log_info("---- set event : ", e);
+        //logInfo("---- set event : ", e);
         if(ok)
             _watcherHub.notify(e);
         else
             e.setErrorMsg(error);
        
-        //log_info("---- notify finish : ", e.nodeValue());
+        //logInfo("---- notify finish : ", e.nodeValue());
         return e;
     }
 
@@ -174,13 +174,13 @@ class Store : StoreInter
         auto e  = new Event(EventAction.Register, key, _currentIndex);
         e.setNetonIndex( _currentIndex);
 
-        //log_info("---- set event : ", e);
+        //logInfo("---- set event : ", e);
         if(ok)
             _watcherHub.notify(e);
         else
             e.setErrorMsg(error);
        
-        //log_info("---- notify finish : ", e.nodeValue());
+        //logInfo("---- notify finish : ", e.nodeValue());
         return e;
     }
 

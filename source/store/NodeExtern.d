@@ -3,7 +3,7 @@ import std.experimental.allocator;
 import std.algorithm.searching;
 import store.store;
 import std.json;
-import zhang2018.common.Log;
+import hunt.logging;
 import std.array;
 import store.util;
 

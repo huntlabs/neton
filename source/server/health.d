@@ -6,10 +6,11 @@ import std.stdio;
 import core.time;
 import std.parallelism;
 import store.event;
-import zhang2018.dreactor.time.Timer;
-import zhang2018.common.Log;
-import client.http;
+// import zhang2018.dreactor.time.Timer;
+import hunt.event.timer;
+import hunt.logging;
 import server.NetonServer;
+import network.http;
 
 class Health
 {
@@ -60,13 +61,13 @@ class Health
         }
     }
 
-    void onTimer(TimerFd fd )
+    void onTimer(AbstractTimer fd )
 	{
         _timer = fd;
-		//log_warning(_key,"  -- do health check.");
+		//logWarning(_key,"  -- do health check.");
         if(_http_url.length > 0)
         {
-            //log_warning(_key,"  -- do health check. url : ",_http_url," timeout : ",_timeout);
+            //logWarning(_key,"  -- do health check. url : ",_http_url," timeout : ",_timeout);
             taskPool.put(task!(makeCheck,Health)(this));
         }
 	}
@@ -76,7 +77,7 @@ class Health
         return _interval*1000;
     }
 
-    @property TimerFd timerFd()
+    @property AbstractTimer timerFd()
     {
         return _timer;
     }
@@ -119,12 +120,12 @@ class Health
         string _http_url;
 
         ServiceState _sState;
-        TimerFd _timer;
+        AbstractTimer _timer;
 }
 
 void makeCheck(Health h)
 {
-    //log_warning(h.key,"  -- do health check. 2 url : ",h.http_url);
+    //logWarning(h.key,"  -- do health check. 2 url : ",h.http_url);
     try
     {
         auto http = HTTP(h.http_url);
@@ -133,7 +134,7 @@ void makeCheck(Health h)
         http.operationTimeout = dur!"seconds"(h.timeout);
         http.onReceive = (ubyte[] data) { return data.length; };
         http.onReceiveStatusLine = (HTTP.StatusLine sl){
-            //log_warning(h.key,"  -- do health check. response code : ",sl.code);
+            //logWarning(h.key,"  -- do health check. response code : ",sl.code);
             if(sl.code != 200)
                 taskPool.put(task!(updateServiceState,Health,ServiceState)(h,ServiceState.Critical));
             else
@@ -141,11 +142,11 @@ void makeCheck(Health h)
 
         };
         auto code = http.perform();
-        //log_warning(h.key,"  -- do health check. perform code : ",code);
+        //logWarning(h.key,"  -- do health check. perform code : ",code);
     }
     catch(Exception e)
     {
-        log_warning(h.key,"  -- do health check. exception  : ",e.msg);
+        logWarning(h.key,"  -- do health check. exception  : ",e.msg);
         taskPool.put(task!(updateServiceState,Health,ServiceState)(h,ServiceState.Critical));
     }   
 }
@@ -154,7 +155,7 @@ void updateServiceState(Health h,ServiceState state)
 {
     try
     {
-        //log_warning(h.key,"  -- update service state : ",state);
+        //logWarning(h.key,"  -- update service state : ",state);
         if(h.state == state)
             return;
         h.set_state(state);
@@ -166,6 +167,6 @@ void updateServiceState(Health h,ServiceState state)
     }
     catch(Exception e)
     {
-        log_warning(h.key,"  -- update service state exception  : ",e.msg);
+        logWarning(h.key,"  -- update service state exception  : ",e.msg);
     }
 }

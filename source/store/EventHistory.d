@@ -3,7 +3,7 @@ module store.EventHistory;
 import store.event;
 import store.EventQueue;
 import core.sync.mutex;
-import zhang2018.common.Log;
+import hunt.logging;
 import std.algorithm.searching;
 
 class EventHistory {
@@ -37,12 +37,12 @@ class EventHistory {
     // scan enumerates events from the index history and stops at the first point
     // where the key matches.
     Event scan(string key, bool recursive,ulong index)  {
-        log_info("scan key from eventHistory : ",key,"  index :",index," histiry lastindex :",_lastIndex);
+        logInfo("scan key from eventHistory : ",key,"  index :",index," histiry lastindex :",_lastIndex);
         synchronized( _mtx )
         {
              // index should be after the event history's StartIndex
             if (index < _startIndex ){
-                log_error("the requested history has been cleared");
+                logError("the requested history has been cleared");
                 return null;
             }
 
@@ -56,7 +56,7 @@ class EventHistory {
 
             while(1) {
                 auto e = _queue.event(i);
-                 log_info("compare event from eventHistory : ",e.node().key);
+                 logInfo("compare event from eventHistory : ",e.node().key);
                 if (!e.refresh) {
                     auto ok = (e.node().key == key);
 
@@ -75,7 +75,7 @@ class EventHistory {
                     }
 
                     if (ok ){
-                        log_info("find event from eventHistory : ",key);
+                        logInfo("find event from eventHistory : ",key);
                         return e ;
                     }
                 }
@@ -83,7 +83,7 @@ class EventHistory {
                 i = (i + 1) % _queue.capacity;
 
                 if (i == _queue.back) {
-                    log_info("not find event from eventHistory : ",key);
+                    logInfo("not find event from eventHistory : ",key);
                     return null;
                 }
             }      

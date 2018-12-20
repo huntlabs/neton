@@ -2,8 +2,8 @@ module wal.decoder;
 
 import std.stdio;
 import wal.record;
-import zhang2018.common.Log;
-import zhang2018.common.Serialize;	
+import hunt.logging;
+import hunt.util.serialize;	
 // const minSectorSize = 512;
 
 // frameSizeBytes is frame size in bytes, including record size and padding size.
@@ -27,11 +27,11 @@ class Decoder  {
 
     int decode(out Record rec)
     {   
-         //log_info("decode read fd length is ",_fr.length);
+         //logInfo("decode read fd length is ",_fr.length);
         int res = 0;
         if(_fr.length == 0)
         {
-            log_error("decode read fd length is 0 ..");
+            logError("decode read fd length is 0 ..");
             return -1;
         }
 
@@ -41,7 +41,7 @@ class Decoder  {
             _fr[0].close;
             _fr = _fr[1..$];
             if (_fr.length == 0) {
-                log_warning("next decode read fd length is 0 ..");
+                logWarning("next decode read fd length is 0 ..");
                 return -1;
             }
             //_fr[0].seek(0,SEEK_SET);
@@ -56,11 +56,11 @@ class Decoder  {
         auto data = _fr[0].rawRead(buf);
         if(data.length != dataLen)
         {
-            log_error("decode error : read data ");
+            logError("decode error : read data ");
             return -1;
         }
-        //log_info("----deserialize Record : ",data.length," ",data);
-        rec = deserialize!Record(data);
+        //logInfo("----unserialize Record : ",data.length," ",data);
+        rec = unserialize!Record(data);
         _lastValidOff += frameSizeBytes + dataLen;
         return res;
     }
@@ -72,17 +72,17 @@ class Decoder  {
          byte[] result;
          try
          {
-              //log_info("read fd open : ",_fr[0].isOpen," filename : ",_fr[0].name);
+              //logInfo("read fd open : ",_fr[0].isOpen," filename : ",_fr[0].name);
               result = _fr[0].rawRead(_uint64buf);
          }
          catch(Exception e)
          {
-            log_error("read file exception  ", e.msg, " fd open : ",_fr[0].isOpen," filename : ",_fr[0].name);
+            logError("read file exception  ", e.msg, " fd open : ",_fr[0].isOpen," filename : ",_fr[0].name);
              return 0;
          }
         if(result.length != _uint64buf.length)
         {
-            log_warning("read file is eof ..");
+            logWarning("read file is eof ..");
             return 0;
         }
 
@@ -99,7 +99,7 @@ class Decoder  {
                 |  (cast(ulong)(src[offset+6] & 0xFF)<<8)
                 |  cast(ulong)(src[offset+7] & 0xFF));
 
-        //log_info("------read head  :  ",_uint64buf, " len : ",len);
+        //logInfo("------read head  :  ",_uint64buf, " len : ",len);
         return len;
      }
 

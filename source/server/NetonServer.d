@@ -1,26 +1,34 @@
 ﻿module server.NetonServer;
 
-import protocol.Msg;
-import client.client;
-import client.base;
-import client.http;
+// import protocol.Msg;
+// import client.client;
+// import client.base;
+// import client.http;
 
-import raft.Raft;
-import raft.Rawnode;
-import raft.Storage;
-import raft.Node;
+// import raft.Raft;
+// import raft.Rawnode;
+// import raft.Storage;
+// import raft.Node;
+import hunt.raft;
+import hunt.net;
+import network;
+import core.time;
+import core.thread;
 
 import std.string;
 
-import zhang2018.dreactor.event.Poll;
-import zhang2018.dreactor.event.Epoll;
-import zhang2018.dreactor.event.Select;
-import zhang2018.dreactor.time.Timer;
-import zhang2018.dreactor.aio.AsyncTcpServer;
+// import zhang2018.dreactor.event.Poll;
+// import zhang2018.dreactor.event.Epoll;
+// import zhang2018.dreactor.event.Select;
+// import zhang2018.dreactor.time.Timer;
+// import zhang2018.dreactor.aio.AsyncTcpServer;
 import store.store;
-import zhang2018.common.Log;
-import zhang2018.common.Serialize;
-import client.http;
+import hunt.logging;
+import hunt.util.serialize;
+import hunt.util.timer;
+import hunt.event.timer;
+import hunt.event.timer.common;
+import network.client;
 import server.NetonConfig;
 import server.health;
 
@@ -43,7 +51,7 @@ enum snapshotCatchUpEntriesN = 10000;
 
 
 
-class NetonServer 
+class NetonServer : MessageReceiver
 {
 	__gshared NetonServer _gserver;
 
@@ -59,8 +67,8 @@ class NetonServer
 
 		if(snap.Metadata.Index <= _appliedIndex)
 		{
-			log_error(log_format("snapshot index [%d] should > progress.appliedIndex [%d] + 1", 
-					snap.Metadata.Index, _appliedIndex));
+			logError("snapshot index [%d] should > progress.appliedIndex [%d] + 1", 
+					snap.Metadata.Index, _appliedIndex);
 		}
 
 		_confState = snap.Metadata.CS;
@@ -90,8 +98,8 @@ class NetonServer
 		auto firstIdx = ents[0].Index;
 		if(firstIdx > _appliedIndex + 1)
 		{
-			log_error(log_format("first index of committed entry[%d] should <= progress.appliedIndex[%d] 1",
-					firstIdx, _appliedIndex));
+			logError("first index of committed entry[%d] should <= progress.appliedIndex[%d] 1",
+					firstIdx, _appliedIndex);
 		}
 
 		if(_appliedIndex - firstIdx + 1 < ents.length)
@@ -119,7 +127,7 @@ class NetonServer
 		}
 		catch (Exception e)
 		{
-			log_error("catch %s", e.msg);
+			logError("catch %s", e.msg);
 			res["error"] = e.msg;
 		}
 		return res.toString;	
@@ -136,7 +144,7 @@ class NetonServer
 					if(ents[i].Data.length == 0)
 						break;
 
-					RequestCommand command = deserialize!RequestCommand(cast(byte[])ents[i].Data);
+					RequestCommand command = unserialize!RequestCommand(cast(byte[])ents[i].Data);
 					
 					string res;
 					iswatch = false;
@@ -146,7 +154,7 @@ class NetonServer
 							{
 								//string value;
 								auto param = tryGetJsonFormat(command.Params);
-								log_info("http GET param : ",param);
+								logInfo("http GET param : ",param);
 								bool recursive = false;
 								if(param.type == JSON_TYPE.OBJECT &&  "recursive" in param)
 									recursive = param["recursive"].str == "true"? true:false;
@@ -176,7 +184,7 @@ class NetonServer
 								else
 								{
 									auto param = tryGetJsonFormat(command.Params);
-									log_info("http PUT param : ",param);
+									logInfo("http PUT param : ",param);
 									bool dir = false;
 									if(param.type == JSON_TYPE.OBJECT &&  "dir" in param)
 											dir = param["dir"].str == "true" ? true:false;
@@ -201,7 +209,7 @@ class NetonServer
 						case RequestMethod.METHOD_UPDATESERVICE:
 							{
 								auto param = tryGetJsonFormat(command.Params);
-								log_info("http update service param : ",param);
+								logInfo("http update service param : ",param);
 								{
 									if(param.type == JSON_TYPE.OBJECT)
 										auto e = Store.instance.Set(command.Key ,false, param.toString);
@@ -213,7 +221,7 @@ class NetonServer
 						case RequestMethod.METHOD_DELETE:
 							{
 								auto param = tryGetJsonFormat(command.Params);
-								log_info("http DELETE param : ",param);
+								logInfo("http DELETE param : ",param);
 								bool recursive = false;
 								if(param.type == JSON_TYPE.OBJECT &&  "recursive" in param)
 									recursive = param["recursive"].str == "true"? true:false;
@@ -224,7 +232,7 @@ class NetonServer
 						case RequestMethod.METHOD_POST:
 							{
 								auto param = tryGetJsonFormat(command.Params);
-								log_info("http post param : ",param);
+								logInfo("http post param : ",param);
 								bool recursive = false;
 								if(param.type == JSON_TYPE.OBJECT)
 								{
@@ -237,7 +245,7 @@ class NetonServer
 											auto nd = e.nodeValue();
 											if("key" in nd && "value" in nd)
 											{
-												addHealthCheck(nd["key"].str,nd["value"]);
+												// addHealthCheck(nd["key"].str,nd["value"]);
 											}
 										}	
 									}
@@ -250,7 +258,7 @@ class NetonServer
 											auto nd = e.nodeValue();
 											if("key" in nd )
 											{
-												removeHealthCheck(nd["key"].str);
+												// removeHealthCheck(nd["key"].str);
 											}
 										}
 									}
@@ -276,7 +284,7 @@ class NetonServer
 						auto http = (command.Hash in _request);
 						if(http != null)
 						{
-							log_info("  http request params : ",http.params());
+							logInfo("  http request params : ",http.params());
 							if(!iswatch)
 							{
 									http.do_response(res);
@@ -284,19 +292,19 @@ class NetonServer
 									_request.remove(command.Hash);
 							}
 							
-							log_info("  http request array length : ",_request.length);
+							logInfo("  http request array length : ",_request.length);
 						}
 					}
 					// else
 					// {
-					// 	//log_info("not leader handle http request : ",_ID);
+					// 	//logInfo("not leader handle http request : ",_ID);
 					// }
 
 
 					break;
 					//next
 				case EntryType.EntryConfChange:
-					ConfChange cc = deserialize!ConfChange(cast(byte[])ents[i].Data);
+					ConfChange cc = unserialize!ConfChange(cast(byte[])ents[i].Data);
 					_confState = _node.ApplyConfChange(cc);
 					switch(cc.Type)
 					{
@@ -307,10 +315,10 @@ class NetonServer
 						case ConfChangeType.ConfChangeRemoveNode:
 							if(cc.NodeID == _ID)
 							{
-								log_warning(_ID , " I've been removed from the cluster! Shutting down.");
+								logWarning(_ID , " I've been removed from the cluster! Shutting down.");
 								return false;
 							}
-							log_warning(_ID , " del node " , cc.NodeID);
+							logWarning(_ID , " del node " , cc.NodeID);
 							delPeer(cc.NodeID);
 							break;
 						default:
@@ -335,15 +343,15 @@ class NetonServer
 		if(_appliedIndex - _snapshotIndex <= defaultSnapCount)
 			return;
 
-		log_info(log_format("start snapshot [applied index: %d | last snapshot index: %d]",
-				_appliedIndex, _snapshotIndex));
+		logInfo("start snapshot [applied index: %d | last snapshot index: %d]",
+				_appliedIndex, _snapshotIndex);
 
 		auto data = loadSnapshot().Data;
 		Snapshot snap;
 		auto err = _storage.CreateSnapshot(_appliedIndex ,&_confState , cast(string)data , snap);
 		if(err != ErrNil)
 		{
-			log_error(err);
+			logError(err);
 		}
 
 		saveSnap(snap);
@@ -353,21 +361,21 @@ class NetonServer
 			compactIndex = _appliedIndex - snapshotCatchUpEntriesN;
 
 		_storage.Compact(compactIndex);
-		log_info("compacted log at index " , compactIndex);
+		logInfo("compacted log at index " , compactIndex);
 		_snapshotIndex = _appliedIndex;
 	}
 
 
-	void Propose(RequestCommand command , http h)
+	void Propose(RequestCommand command , HttpBase h)
 	{
 		auto err = _node.Propose(cast(string)serialize(command));
 		if( err != ErrNil)
 		{
-			log_error("---------",err);
+			logError("---------",err);
 		}
 		else
 		{
-			//log_info("--------- request hash ",command.Hash);
+			//logInfo("--------- request hash ",command.Hash);
 			_request[command.Hash] = h;
 		}
 	}
@@ -377,11 +385,11 @@ class NetonServer
 		auto err = _node.Propose(cast(string)serialize(command));
 		if( err != ErrNil)
 		{
-			log_error("---------",err);
+			logError("---------",err);
 		}
 	}
 
-	void ReadIndex(RequestCommand command , http h)
+	void ReadIndex(RequestCommand command , HttpBase h)
 	{
 		_node.ReadIndex(cast(string)serialize(command));
 		_request[command.Hash] = h;
@@ -392,7 +400,7 @@ class NetonServer
 		auto err = _node.ProposeConfChange(cc);
 		if( err != ErrNil)
 		{
-			log_error(err);
+			logError(err);
 		}
 	}
 
@@ -410,7 +418,7 @@ class NetonServer
 			auto wal = new WAL(_waldir,null);
 			
 			if (wal is null) {
-				log_error("raftexample: create wal error ", _ID);
+				logError("raftexample: create wal error ", _ID);
 			}
 			wal.Close();
 		}
@@ -420,18 +428,18 @@ class NetonServer
 		walsnap.index = snapshot.Metadata.Index;
 		walsnap.term =  snapshot.Metadata.Term;
 	
-		log_info("loading WAL at term ", walsnap.term," and index ",walsnap.index);
+		logInfo("loading WAL at term ", walsnap.term," and index ",walsnap.index);
 
 		_wal = new WAL(_waldir,walsnap,true);
 		
 		if (_wal is null) {
-			log_error("raftexample: error loading wal ", _ID);
+			logError("raftexample: error loading wal ", _ID);
 		}
 	}
 
 	// replayWAL replays WAL entries into the raft instance.
 	void replayWAL() {
-		log_info("replaying WAL of member ", _ID);
+		logInfo("replaying WAL of member ", _ID);
 		auto snapshot = loadSnapshot();
 		openWAL(snapshot);
 
@@ -447,15 +455,15 @@ class NetonServer
 
 		if(!IsEmptySnap(snapshot))
 		{
-			log_info("******* exsit snapshot : ",snapshot);
+			logInfo("******* exsit snapshot : ",snapshot);
 			_storage.ApplySnapshot(snapshot);
 			_confState = snapshot.Metadata.CS;
 			_snapshotIndex = snapshot.Metadata.Index;
 			_appliedIndex = snapshot.Metadata.Index;
 		}	
 		
-		//log_info("-------hard state : ",hs);
-		//log_info("-------entry []  : ",ents);
+		//logInfo("-------hard state : ",hs);
+		//logInfo("-------entry []  : ",ents);
 		_storage.setHadrdState(hs);
 
 		// append to storage so raft starts at the right place in log
@@ -497,7 +505,7 @@ class NetonServer
 		conf._MaxInflightMsgs	=	256;
 
 	
-		_poll 			= new Epoll();
+		// _poll 			= new Epoll();
 		_buffer.length 	= 1024;
 
 		//string[] peerstr = split(cluster , ";");
@@ -521,29 +529,44 @@ class NetonServer
 			{
 				peers.length = 0;
 			}
-
+			logInfo("self conf : ",conf,"   peers conf : ",peers);
 			_node = new RawNode(conf , peers);
 		}
 
-		_http = new AsyncTcpServer!(http , byte[])(_poll , _buffer);
-		_http.open("0.0.0.0" , NetonConfig.instance.selfConf.apiport);
+		// _http = new AsyncTcpServer!(http , byte[])(_poll , _buffer);
+		_http = new NetServer!(HttpBase,NetonServer)(_ID , this);
+
+		_http.listen("0.0.0.0" , NetonConfig.instance.selfConf.apiport);
 
 
-		_server = new AsyncTcpServer!(base ,ulong, byte[])(_poll , _ID , _buffer);
-		_server.open("0.0.0.0" , NetonConfig.instance.selfConf.nodeport);
+		// _server = new AsyncTcpServer!(base ,ulong, byte[])(_poll , _ID , _buffer);
+		_server = new NetServer!(Base,MessageReceiver)(_ID , this);
+
+		_server.listen("0.0.0.0" , NetonConfig.instance.selfConf.nodeport);
 
 		foreach(peer ; NetonConfig.instance.peersConf)
 		{
 			addPeer(peer.id,peer.ip ~":"~ to!string(peer.nodeport));
 		}
 		
-		_poll.addFunc(&ready);
+		// _poll.addFunc(&ready);
 
-		_poll.addFunc(&scanWatchers);
+		new Timer(NetUtil.defaultEventLoopGroup().nextLoop(),100.msecs).onTick(&ready).start();
 
-		_poll.addTimer(&onTimer , 100 , WheelType.WHEEL_PERIODIC);
 
-		_poll.start();
+		// _poll.addFunc(&scanWatchers);
+
+		new Timer(NetUtil.defaultEventLoopGroup().nextLoop(),100.msecs).onTick(&scanWatchers).start();
+
+
+		// _poll.addTimer(&onTimer , 100 , WheelType.WHEEL_PERIODIC);
+		new Timer(NetUtil.defaultEventLoopGroup().nextLoop(),1000.msecs).onTick(&onTimer).start();
+
+
+
+		// _poll.start();
+
+		NetUtil.startEventLoop(-1);
 
 	}
 
@@ -552,10 +575,23 @@ class NetonServer
 		if(ID in _clients)
 			return false;
 
-		_clients[ID] = new NodeClient(_poll , _ID , ID);
+		auto client = new RaftClient(this._ID , ID);
 		string[] hostport = split(data , ":");
-		_clients[ID].open(hostport[0] , to!ushort(hostport[1]));
-		log_info(_ID , " client connect " , hostport[0] , " " , hostport[1]);
+		client.connect(hostport[0] , to!int(hostport[1]) , (Result!NetSocket result){
+			if(result.failed()){
+				
+				logWarning("connect fail --> : ",data);
+                new Thread((){
+                    Thread.sleep(dur!"seconds"(1));
+                    addPeer(ID , data);
+                }).start();
+                return;
+			}
+			_clients[ID] = client;
+			logInfo(this._ID , " client connected " , hostport[0] , " " , hostport[1]);
+			// return true;
+		});
+
 		return true;
 	}
 
@@ -564,43 +600,51 @@ class NetonServer
 		if(ID !in _clients)
 			return false;
 
-		log_info(_ID , " client disconnect " , ID);
-		_clients[ID].close(true);
+		logInfo(_ID , " client disconnect " , ID);
+		_clients[ID].close();
 		_clients.remove(ID);
 		
 		return true;
 	}
 
-	void wait()
-	{
-		_poll.wait();
-	}
+	// void wait()
+	// {
+	// 	_poll.wait();
+	// }
 
 	void send(Message[] msg)
 	{
+			logInfo("----- send  ",msg);
+
 		foreach(m ; msg)
-			_clients[m.To].send(m);
+			_clients[m.To].write(m);
 	}
 
-	void Step(Message msg)
-	{
-		_node.Step(msg);
-	}
+	void step(Message msg)
+    {
+        //  _mutex.lock();
+        _node.Step(msg);
+        // _mutex.unlock();
+    }
 
-	void onTimer(TimerFd fd )
+	void onTimer(Object sender)
 	{
+			logInfo("----- onTimer  ");
+
 		_node.Tick();
 	}
 
-	void ready()
+	void ready(Object sender)
 	{
+			logInfo("----- read  ");
+
 		Ready rd = _node.ready();
 		if(!rd.containsUpdates())
 		{
-			//log_info("----- read not update");
+			logInfo("----- read not update");
 			return;
 		}
-		//log_info("------ready ------ ",_ID);
+		//logInfo("------ready ------ ",_ID);
 		_wal.Save(rd.hs, rd.Entries);
 		if( !IsEmptySnap(rd.snap))
 		{
@@ -609,11 +653,13 @@ class NetonServer
 			publishSnapshot(rd.snap);
 		}
 		_storage.Append(rd.Entries);
+		logInfo("------ready ------ ",_ID);
+
 		send(rd.Messages);
 		if(!publishEntries(entriesToApply(rd.CommittedEntries)))
 		{
-			_poll.stop();
-			log_error("----- poll stop");
+			// _poll.stop();
+			logError("----- poll stop");
 			return;
 		}
 
@@ -624,13 +670,13 @@ class NetonServer
 			bool iswatch = false;
 			if( r.Index >= _appliedIndex)
 			{
-				RequestCommand command =  deserialize!RequestCommand(cast(byte[])r.RequestCtx);
+				RequestCommand command =  unserialize!RequestCommand(cast(byte[])r.RequestCtx);
 				auto h =  command.Hash in _request;
 				if(h == null){
 					continue;
 				}
 				auto param = tryGetJsonFormat(command.Params);
-				log_info("http GET param : ",param);
+				logInfo("http GET param : ",param);
 				bool recursive = false;
 				if(param.type == JSON_TYPE.OBJECT &&  "recursive" in param)
 					recursive = param["recursive"].str == "true"? true:false;
@@ -662,39 +708,39 @@ class NetonServer
 		maybeTriggerSnapshot();
 		_node.Advance(rd);
 
-		if(_node.isLeader())
-		{
-			if(leader() != _lastLeader)
-			{
-				log_warning("-----*****start health check *****-----");
-				_lastLeader = leader();
-				starHealthCheck();
-				loadServices(service_prefix[0..$-1]);
-			}
-		}
-		else
-		{
-			if(_healths.length > 0)
-			{
-				log_warning("-----*****stop health check *****-----");
-				synchronized(_mutex)
-				{
-					if(_healthPoll !is null)
-					{
-						_healthPoll.stop();
-						foreach(key;_healths.keys)
-						{
-							_healthPoll.delTimer(_healths[key].timerFd);
-						}
-					}
-					_healths.clear;
-					_healthPoll = null;
-				}
-			}
-		}
+		// if(_node.isLeader())
+		// {
+		// 	if(leader() != _lastLeader)
+		// 	{
+		// 		logWarning("-----*****start health check *****-----");
+		// 		_lastLeader = leader();
+		// 		starHealthCheck();
+		// 		loadServices(service_prefix[0..$-1]);
+		// 	}
+		// }
+		// else
+		// {
+		// 	if(_healths.length > 0)
+		// 	{
+		// 		logWarning("-----*****stop health check *****-----");
+		// 		synchronized(_mutex)
+		// 		{
+		// 			if(_healthPoll !is null)
+		// 			{
+		// 				_healthPoll.stop();
+		// 				foreach(key;_healths.keys)
+		// 				{
+		// 					_healthPoll.delTimer(_healths[key].timerFd);
+		// 				}
+		// 			}
+		// 			_healths.clear;
+		// 			_healthPoll = null;
+		// 		}
+		// 	}
+		// }
 	}
 
-	void scanWatchers()
+	void scanWatchers(Object sender)
 	{
 		//if(_node.isLeader())
 		{
@@ -702,7 +748,7 @@ class NetonServer
 			{
 				if(w.haveNotify)
 				{
-					log_info("----- scaned notify key: ",w.key," hash :",w.hash);
+					logInfo("----- scaned notify key: ",w.key," hash :",w.hash);
 					auto http = (w.hash in _request);
 					if(http != null)
 					{
@@ -710,7 +756,7 @@ class NetonServer
 						foreach( e ; es)
 						{
 							auto res = makeJsonString(e);
-							//log_info("----- response msg : ",res);
+							//logInfo("----- response msg : ",res);
 							http.do_response(res);
 						    http.close();
 							break;
@@ -741,7 +787,7 @@ class NetonServer
 		}
 		auto wl = remove!(a => a.hash == hash)(_watchers);
 		move(wl,_watchers);
-		log_info("---watchers len : ",_watchers.length);
+		logInfo("---watchers len : ",_watchers.length);
 	}
 
 	static NetonServer instance()
@@ -756,112 +802,115 @@ class NetonServer
 		return _node._raft._lead;
 	}
     
-	void saveHttp(http h)
+	void saveHttp(HttpBase h)
 	{
 		_request[h.toHash] = h;
 	}
 
-	void starHealthCheck()
-	{
-		_healthPoll = new Epoll(100);
-		_healthPoll.start();
-	}
+	// void starHealthCheck()
+	// {
+	// 	_healthPoll = new Epoll(100);
+	// 	_healthPoll.start();
+	// }
 
-	void addHealthCheck(string key,ref JSONValue value)
-	{
-		if(!_node.isLeader)
-			return;
-		if(_healthPoll !is null)
-		{
-			 synchronized(_mutex)
-			 {
-				 auto health = new Health(key,value);
-				if(key in _healths)
-				{
-					auto oldHlt = _healths[key];
-					_healthPoll.delTimer(oldHlt.timerFd);
-				}
-				_healths[key] = health;
-				_healthPoll.addTimer(&health.onTimer,health.interval_ms(),WheelType.WHEEL_PERIODIC);
-			 }
-		}
-		log_info("-----*****health check num : ",_healths.length);
-	}
+	// void addHealthCheck(string key,ref JSONValue value)
+	// {
+	// 	if(!_node.isLeader)
+	// 		return;
+	// 	if(_healthPoll !is null)
+	// 	{
+	// 		 synchronized(_mutex)
+	// 		 {
+	// 			 auto health = new Health(key,value);
+	// 			if(key in _healths)
+	// 			{
+	// 				auto oldHlt = _healths[key];
+	// 				_healthPoll.delTimer(oldHlt.timerFd);
+	// 			}
+	// 			_healths[key] = health;
+	// 			_healthPoll.addTimer(&health.onTimer,health.interval_ms(),WheelType.WHEEL_PERIODIC);
+	// 		 }
+	// 	}
+	// 	logInfo("-----*****health check num : ",_healths.length);
+	// }
 
-	void removeHealthCheck(string key)
-	{
-		if(!_node.isLeader)
-			return;
-		synchronized(_mutex)
-		{
-			if(key in _healths)
-			{
-				auto health = _healths[key];
-				if(_healthPoll !is null)
-				{
-					_healthPoll.delTimer(health.timerFd);
-				}
-				_healths.remove(key);
-			}
-		}
+	// void removeHealthCheck(string key)
+	// {
+	// 	if(!_node.isLeader)
+	// 		return;
+	// 	synchronized(_mutex)
+	// 	{
+	// 		if(key in _healths)
+	// 		{
+	// 			auto health = _healths[key];
+	// 			if(_healthPoll !is null)
+	// 			{
+	// 				_healthPoll.delTimer(health.timerFd);
+	// 			}
+	// 			_healths.remove(key);
+	// 		}
+	// 	}
 		
-		log_info("-----*****health check num : ",_healths.length);
-	}
+	// 	logInfo("-----*****health check num : ",_healths.length);
+	// }
 
-	void loadServices(string key)
-	{
+	// void loadServices(string key)
+	// {
 
-        JSONValue node = Store.instance().getJsonValue(key);
-        if(node.type != JSON_TYPE.NULL)
-        {
-            auto dir = node["dir"].str == "true" ? true:false;
-            if(!dir)
-            {
-                if(startsWith(key,service_prefix))
-				{
-					auto val = tryGetJsonFormat(node["value"].str);
-					addHealthCheck(key,val);
-				}
-                else
-				{
-				}
-                return ;
-            }
-            else
-            {
-                auto children = node["children"].str;
-                if(children.length == 0)
-                {
-                    return ;
-                }
-                else
-                {
-                    JSONValue[] subs;
-                    auto segments = split(children, ";");
-                    foreach(subkey;segments)
-                    {
-                        if(subkey.length != 0)
-                        {
-                            loadServices(subkey);
-                        }
-                    }
-                    return ;
-                }
+    //     JSONValue node = Store.instance().getJsonValue(key);
+    //     if(node.type != JSON_TYPE.NULL)
+    //     {
+    //         auto dir = node["dir"].str == "true" ? true:false;
+    //         if(!dir)
+    //         {
+    //             if(startsWith(key,service_prefix))
+	// 			{
+	// 				auto val = tryGetJsonFormat(node["value"].str);
+	// 				addHealthCheck(key,val);
+	// 			}
+    //             else
+	// 			{
+	// 			}
+    //             return ;
+    //         }
+    //         else
+    //         {
+    //             auto children = node["children"].str;
+    //             if(children.length == 0)
+    //             {
+    //                 return ;
+    //             }
+    //             else
+    //             {
+    //                 JSONValue[] subs;
+    //                 auto segments = split(children, ";");
+    //                 foreach(subkey;segments)
+    //                 {
+    //                     if(subkey.length != 0)
+    //                     {
+    //                         loadServices(subkey);
+    //                     }
+    //                 }
+    //                 return ;
+    //             }
                 
-            }
-        }
-        else
-        {
-            return ;
-        }
-	}
+    //         }
+    //     }
+    //     else
+    //     {
+    //         return ;
+    //     }
+	// }
 
 	MemoryStorage							_storage;
-	Poll									_poll;
+	// Poll									_poll;
 	ulong									_ID;
-	AsyncTcpServer!(base,ulong ,byte[])		_server;
-	AsyncTcpServer!(http , byte[])			_http;
-	NodeClient[ulong]						_clients;
+	// AsyncTcpServer!(base,ulong ,byte[])		_server;
+	// AsyncTcpServer!(http , byte[])			_http;
+	NetServer!(Base,MessageReceiver)			_server;
+	NetServer!(HttpBase,NetonServer)					_http;
+
+	RaftClient[ulong]						_clients;
 	RawNode									_node;
 	byte[]									_buffer;
 
@@ -872,7 +921,7 @@ class NetonServer
 	ulong									_snapshotIndex;
 	ulong									_appliedIndex;
 
-	http[ulong]								_request;
+	HttpBase[ulong]								_request;
 
 	string 									_waldir;         // path to WAL directory
 	string   							    _snapdir;        // path to snapshot directory
@@ -880,7 +929,7 @@ class NetonServer
 	WAL										_wal;
 	Watcher[]								_watchers;
 
-	Poll 									_healthPoll;	 	//eventloop for health check
+	// Poll 									_healthPoll;	 	//eventloop for health check
 	Health[string]							_healths;
 	ulong 									_lastLeader=0;
 	Mutex									_mutex;

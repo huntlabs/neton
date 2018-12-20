@@ -10,14 +10,19 @@
 	"lflags": ["-L./lib"],  
 	"libs": ["rocksdb","zstd"],  
 	"dependencies":{
-		"dreactor":{
-			"path" :"../dreactor"
+		"hunt":{
+			"path" :"../hunt"
 		},
-		"raft":{
-			"path" :"../raft"
+		"hunt-net":{
+			"path" :"../hunt-net"
+		},
+		"hunt-raft":{
+			"path" :"../hunt-raft"
 		},
 		"rocksdb":{
 			"version" :"~>0.0.7"
 		}
-	}
+	},
+	"versions":["HUNT_DEBUG2"]
+
 }

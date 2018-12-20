@@ -5,11 +5,12 @@ import std.file;
 import std.path;
 import std.array;
 import std.format;
-import protocol.Msg;
-import zhang2018.common.Serialize;
-import zhang2018.common.Log;
+// import protocol.Msg;
+import hunt.util.serialize;
+import hunt.logging;
 import std.algorithm.sorting;
-import raft.Node;
+// import raft.Node;
+import hunt.raft;
 
 const string snapSuffix = ".snap";
 
@@ -41,7 +42,7 @@ class Snapshotter  {
             return;
         auto writer = appender!string();
         formattedWrite(writer, "%s/%s-%s%s",_dir,snapshot.Metadata.Term,snapshot.Metadata.Index,snapSuffix);
-        log_info("savesnap file name : ",writer.data);
+        logInfo("savesnap file name : ",writer.data);
         auto b = serialize(snapshot);
         auto file = File(writer.data,"wb");
         file.rawWrite(b);
@@ -65,7 +66,7 @@ class Snapshotter  {
         string lastName = getLastSnapName();
         if(lastName is null)
         {
-            log_info("-------- no snap shot info ");
+            logInfo("-------- no snap shot info ");
             return snapshot;
         }
         auto file = File(lastName,"rb");
@@ -76,7 +77,7 @@ class Snapshotter  {
 			content ~= file.rawRead(data);
 		}
 		file.close();
-        snapshot = deserialize!Snapshot(content);
+        snapshot = unserialize!Snapshot(content);
         return snapshot;
     }
 
@@ -107,7 +108,7 @@ class Snapshotter  {
         }
         
         multiSort!("a.term > b.term","a.index > b.index")(snap);
-        log_info("last snap shot ,term : ",snap[0].term," index : ",snap[0].index);
+        logInfo("last snap shot ,term : ",snap[0].term," index : ",snap[0].index);
         auto lastName = appender!string();
         formattedWrite(lastName, "%s/%s-%s%s",_dir,snap[0].term,snap[0].index,snapSuffix);
         return lastName.data;

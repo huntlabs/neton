@@ -2,7 +2,7 @@ module store.watcher;
 
 import store.event;
 import std.uuid;
-import zhang2018.common.Log;
+import hunt.logging;
 
 interface WatcherInter {
 	Event[] events();
@@ -108,17 +108,17 @@ class Watcher :  WatcherInter {
         // at the file we need to delete.
         // For example a watcher is watching at "/foo/bar". And we deletes "/foo". The watcher
         // should get notified even if "/foo" is not the path it is watching.
-        //log_info("---- have a notify2 : ", _recursive," e.index :", e.Index()," _sinceIndex : ",_sinceIndex );
+        //logInfo("---- have a notify2 : ", _recursive," e.index :", e.Index()," _sinceIndex : ",_sinceIndex );
         if ((_recursive || originalPath || deleted) && e.Index() >= _sinceIndex) {
             // We cannot block here if the event array capacity is full, otherwise
             // neton will hang. event array capacity is full when the rate of
             // notifications are higher than our send rate.
             // If this happens, we close the channel.
             
-            log_info("---- have a notify : ", _key);
+            logInfo("---- have a notify : ", _key);
             if(_events.length >= MAX_EVENTS)
             {
-                log_warning("---- too many events  : ", _key);
+                logWarning("---- too many events  : ", _key);
                 Remove();
                 return true;
             }

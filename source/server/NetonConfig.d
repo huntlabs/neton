@@ -3,7 +3,7 @@ module server.NetonConfig;
 import std.json;
 import std.file;
 import std.stdio;
-import zhang2018.common.Log;
+import hunt.logging;
 
 
 struct PeerConf
@@ -31,7 +31,7 @@ class NetonConfig
         }
         catch (Exception e)
         {
-            log_error("catch netonconfig parase error : %s", e.msg);
+            logError("catch netonconfig parase error : %s", e.msg);
         }
         praseConf();
     }
@@ -85,7 +85,7 @@ class NetonConfig
             }
         }
 
-        log_info("Self conf : ",_self,"  |  PeerConf : ",_peersConf);
+        logInfo("Self conf : ",_self,"  |  PeerConf : ",_peersConf);
     }
 
     @property PeerConf[] peersConf()

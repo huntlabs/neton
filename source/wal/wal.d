@@ -1,16 +1,17 @@
 module wal.wal;
 
-import protocol.Msg;
+// import protocol.Msg;
 import wal.record;
 import wal.util;
 import wal.decoder;
 import wal.encoder;
-import zhang2018.common.Serialize;	
+import hunt.util.serialize;	
 import std.stdio;
-import zhang2018.common.Log;
+import hunt.logging;
 import std.file;
 import std.experimental.allocator;
-import raft.Node;
+// import raft.Node;
+import hunt.raft;
 import std.path;
 
 	// SegmentSizeBytes is the preallocated size of each wal segment file.
@@ -57,7 +58,7 @@ class WAL  {
     // recorded at the head of each WAL file, and can be retrieved with ReadAll.
 		this(string dirpath,  byte[] metadata) {
 			if (!isEmptyDir(dirpath)) {
-				log_error("wal dir not is empty...");
+				logError("wal dir not is empty...");
 				return;
 			}
 
@@ -80,7 +81,7 @@ class WAL  {
 			_encoder = theAllocator.make!Encoder(_fw[_fw.length-1]);
 			
 			if (_encoder is null) {
-				log_error("theAllocator make encoder object error...");
+				logError("theAllocator make encoder object error...");
 				return;
 			}
 
@@ -99,7 +100,7 @@ class WAL  {
 			
 			long idx = searchIndex(names, snap.index);
 			if (idx < 0) {
-				log_error("search index ",snap.index);
+				logError("search index ",snap.index);
 				return ;
 			}
 
@@ -150,18 +151,18 @@ class WAL  {
 		bool match ;
 		while (_decoder.decode(rec) != -1)
 		{
-			//log_info("decoder --- --- ");	
+			//logInfo("decoder --- --- ");	
 			switch(rec.type) 
 			{
 			case WalType.entryType:
-				Entry e = deserialize!Entry(cast(byte[])rec.data);
+				Entry e = unserialize!Entry(cast(byte[])rec.data);
 				if (e.Index > _start.index) {
 					ents ~= e;
 				}
 				_enti = e.Index;
 				break;
 			case WalType.stateType:
-				state = deserialize!HardState(cast(byte[])rec.data);
+				state = unserialize!HardState(cast(byte[])rec.data);
 				break;
 			case WalType.metadataType:
 				metadata = cast(byte[])rec.data;
@@ -170,12 +171,12 @@ class WAL  {
 				
 				break;
 			case WalType.snapshotType:
-				WalSnapshot snap = deserialize!WalSnapshot(cast(byte[])rec.data);
+				WalSnapshot snap = unserialize!WalSnapshot(cast(byte[])rec.data);
 				if (snap.index == _start.index) {
 					if (snap.term != _start.term ){
 						HardState st;
 						state = st;
-						log_error("ErrSnapshotMismatch ");
+						logError("ErrSnapshotMismatch ");
 						return ;
 					}
 					match = true;
@@ -184,13 +185,13 @@ class WAL  {
 			default:
 				HardState st;
 				state = st;
-				log_error("unexpected block type ", rec.type);
+				logError("unexpected block type ", rec.type);
 				return;
 			}
 		}
 
 		if (!match) {
-			log_error("ErrSnapshotNotFound ");
+			logError("ErrSnapshotNotFound ");
 		}
 
 		// close decoder, disable reading
@@ -205,9 +206,9 @@ class WAL  {
 
 		if(_fw.length > 0)
 		{
-			log_info("make encoder ..before ");
+			logInfo("make encoder ..before ");
 			_encoder = theAllocator.make!Encoder(_fw[_fw.length-1]);
-			log_info("make encoder ..after ");
+			logInfo("make encoder ..after ");
 		}
 		_decoder.Close();
 		_decoder = null;
@@ -215,7 +216,7 @@ class WAL  {
 
 	void saveEntry(Entry e) {
 		// TODO: add MustMarshalTo to reduce one allocation.
-		//log_info("--------------debug 2-----");
+		//logInfo("--------------debug 2-----");
 		auto b = serialize(e);
 		Record rec = {type: WalType.entryType, data:cast(string)b};
 		if(_encoder !is null)
@@ -227,7 +228,7 @@ class WAL  {
 	}
 
 	void saveState(HardState s) {
-		//log_info("--------------debug 1-----");
+		//logInfo("--------------debug 1-----");
 		if (IsEmptyHardState(s)) {
 			return ;
 		}
@@ -247,7 +248,7 @@ class WAL  {
 		if (IsEmptyHardState(st) && ents.length == 0 ){
 			return ;
 		}
-		//log_info("----- save hard state : ",st, " entry  : ",ents);
+		//logInfo("----- save hard state : ",st, " entry  : ",ents);
 
 		bool mustSync = Ready.MustSync(st, _hdstate, cast(int)ents.length);
 
@@ -258,11 +259,11 @@ class WAL  {
 
 		saveState(st);
 
-		//log_info("--------------debug -----");
+		//logInfo("--------------debug -----");
 		auto curOff = _encoder.curOff();
 
 		if (curOff < SegmentSizeBytes) {
-			//log_info("----- curoff : ",curOff," mustSync : ",mustSync);
+			//logInfo("----- curoff : ",curOff," mustSync : ",mustSync);
 			if(mustSync)
 				return sync();
 			return;
@@ -278,7 +279,7 @@ class WAL  {
 // Then cut atomically rename temp wal file to a wal file.
 void cut()  {
 		// close old wal file; truncate to avoid wasting space if an early cut
-		log_info("---- cut new file .");
+		logInfo("---- cut new file .");
 		if(_fw.length > 0)
 		{
 			if(_fw[_fw.length - 1].isOpen)
@@ -355,7 +356,7 @@ void cut()  {
 	{
 		foreach(fp;_fw)
 		{
-		    log_info("-----------close file name--------",fp.name);
+		    logInfo("-----------close file name--------",fp.name);
 			if(fp.isOpen)
 				fp.flush();
 			fp.close();
@@ -363,7 +364,7 @@ void cut()  {
 		_fw.length = 0;
 		foreach(fp;_fr)
 		{
-		    log_info("-----------close file name--------",fp.name);
+		    logInfo("-----------close file name--------",fp.name);
 			if(fp.isOpen)
 				fp.flush();
 			fp.close();

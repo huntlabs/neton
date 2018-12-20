@@ -1,9 +1,9 @@
 module wal.encoder;
 import std.file;
 import wal.record;
-import zhang2018.common.Serialize;
+import hunt.util.serialize;
 import std.stdio;
-import zhang2018.common.Log;
+import hunt.logging;
 // walPageBytes is the alignment for flushing records to the backing Writer.
 // It should be a multiple of the minimum sector size so that WAL can safely
 // distinguish between torn writes and ordinary data corruption.
@@ -38,11 +38,11 @@ class Encoder  {
         byte[] data;
 
         data = serialize(rec);
-        //log_info("--------------debug 3-----",data," file name : ",_fw.name);
+        //logInfo("--------------debug 3-----",data," file name : ",_fw.name);
         ulong lenField= encodeFrameSize(data.length,WalType.recordType);
-        //log_info("--------------debug 4-----",lenField," data.length : ",data.length);
+        //logInfo("--------------debug 4-----",lenField," data.length : ",data.length);
         writeUint64(lenField);
-        //log_info("--------------debug 5-----"," file name : ",_fw.name);
+        //logInfo("--------------debug 5-----"," file name : ",_fw.name);
         _fw.rawWrite(data);
         return;
     }
@@ -53,7 +53,7 @@ class Encoder  {
     }
 
     void flush()  {
-        //log_info("----- flush file : ",_fw.name," file open : ",_fw.isOpen);
+        //logInfo("----- flush file : ",_fw.name," file open : ",_fw.isOpen);
         if(_fw.isOpen)
             _fw.flush();
     }
@@ -62,17 +62,17 @@ class Encoder  {
         byte[] uint64buf = new byte[8];
         for(int i = 0 ; i< 8 ; i++ )
             uint64buf[i] =cast(byte)( (cast(byte)(n >>(8*(8-i-1)))) & 0xff);
-        //log_info("--------------debug 6-----",uint64buf," file name : ",_fw.name, " file open : ",_fw.isOpen);
+        //logInfo("--------------debug 6-----",uint64buf," file name : ",_fw.name, " file open : ",_fw.isOpen);
         try
         {
             if(!_fw.isOpen)
                 _fw.open(_fw.name,"ab+");
             _fw.rawWrite(uint64buf);
-            // log_info("--------------debug 7-----");
+            // logInfo("--------------debug 7-----");
         }
         catch (Exception e)
         {
-            log_error("-----7 catch :", e.msg);
+            logError("-----7 catch :", e.msg);
         }
 
         return;
