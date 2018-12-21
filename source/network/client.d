@@ -14,40 +14,40 @@ import std.stdint;
 class RaftClient : MessageTransfer
 {
     ///
-	this(ulong srcID , ulong dstID)
-	{
-		this.srcID = srcID;
-		this.dstID = dstID;
-        client = NetUtil.createNetClient();
-	}
-
-    ///
-    void connect(string host , int port , ConnectHandler handler = null)
+    this(ulong srcID, ulong dstID)
     {
-        client.connect(port , host , 0 , ( Result!NetSocket result ){
-            if(handler !is null)
-                handler(result);
-            if(!result.failed())
-                sock = result.result();
-        } );
+        this.srcID = srcID;
+        this.dstID = dstID;
+        client = NetUtil.createNetClient();
     }
 
     ///
-	void write(Message msg)
-	{
-        if(sock is null)
-        {   
-            logWarning(srcID ," not connect now. " , dstID); 
+    void connect(string host, int port, ConnectHandler handler = null)
+    {
+        client.connect(port, host, 0, (Result!NetSocket result) {
+            if (handler !is null)
+                handler(result);
+            if (!result.failed())
+                sock = result.result();
+        });
+    }
+
+    ///
+    void write(Message msg)
+    {
+        if (sock is null)
+        {
+            logWarning(srcID, " not connect now. ", dstID);
             return;
         }
 
-	    logDebug(srcID , " sendto " , dstID , " "  , msg);
-		ubyte []data = cast(ubyte[])serialize(msg);
-		int len = cast(int)data.length;
+        // logDebug(srcID , " sendto " , dstID , " "  , msg);
+        ubyte[] data = cast(ubyte[]) serialize(msg);
+        int len = cast(int) data.length;
         ubyte[4] head = nativeToBigEndian(len);
 
         sock.write(head ~ data);
-	}
+    }
 
     void close()
     {
@@ -55,9 +55,8 @@ class RaftClient : MessageTransfer
     }
 
 private:
-	ulong       srcID;
-	ulong       dstID;
-    NetClient   client;
-    NetSocket   sock = null;
+    ulong srcID;
+    ulong dstID;
+    NetClient client;
+    NetSocket sock = null;
 }
-

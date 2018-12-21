@@ -1,6 +1,5 @@
 module network.api;
 
-
 import hunt.raft.Msg;
 
 interface MessageTransfer
@@ -9,11 +8,9 @@ interface MessageTransfer
     void close();
 }
 
-interface MessageReceiver 
+interface MessageReceiver
 {
     void step(Message msg);
 }
 
 alias Finish = void delegate(string data);
-
-

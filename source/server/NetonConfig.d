@@ -5,7 +5,6 @@ import std.file;
 import std.stdio;
 import hunt.logging;
 
-
 struct PeerConf
 {
     ulong id;
@@ -24,7 +23,7 @@ class NetonConfig
 
     void loadConf(string confPath)
     {
-         try
+        try
         {
             auto data = getFileContent(confPath);
             _jconf = parseJSON(cast(string)(data));
@@ -37,55 +36,55 @@ class NetonConfig
     }
 
     byte[] getFileContent(string filename)
-	{
-		byte[] content;
-		if(!exists(filename))
-			return null;
-		byte[] data = new byte[4096];
-		auto ifs = File(filename, "rb");
-		while(!ifs.eof())
-		{
-			content ~= ifs.rawRead(data);
-		}
-		ifs.close();
-		return content;
-	}
+    {
+        byte[] content;
+        if (!exists(filename))
+            return null;
+        byte[] data = new byte[4096];
+        auto ifs = File(filename, "rb");
+        while (!ifs.eof())
+        {
+            content ~= ifs.rawRead(data);
+        }
+        ifs.close();
+        return content;
+    }
 
     static NetonConfig instance()
-	{
-		if(_gconfig is null)
-			_gconfig = new NetonConfig();
-		return _gconfig;
-	}
+    {
+        if (_gconfig is null)
+            _gconfig = new NetonConfig();
+        return _gconfig;
+    }
 
     void praseConf()
     {
-        if(_jconf.type == JSON_TYPE.OBJECT)
+        if (_jconf.type == JSON_TYPE.OBJECT)
         {
-            if("self" in _jconf)
+            if ("self" in _jconf)
             {
                 auto self = _jconf["self"].object();
-                _self.id =   self["id"].integer();
-                _self.apiport =  cast(ushort)self["apiport"].integer();
-                _self.nodeport = cast(ushort)self["nodeport"].integer();
+                _self.id = self["id"].integer();
+                _self.apiport = cast(ushort) self["apiport"].integer();
+                _self.nodeport = cast(ushort) self["nodeport"].integer();
             }
 
-            if("peers" in _jconf)
+            if ("peers" in _jconf)
             {
                 auto peers = _jconf["peers"].array();
-                foreach(peer;peers)
+                foreach (peer; peers)
                 {
                     PeerConf pf;
-                    pf.id =  peer["id"].integer();
-                    pf.ip =  peer["ip"].str();
-                    pf.apiport =  cast(ushort)peer["apiport"].integer();
-                    pf.nodeport = cast(ushort)peer["nodeport"].integer();
+                    pf.id = peer["id"].integer();
+                    pf.ip = peer["ip"].str();
+                    pf.apiport = cast(ushort) peer["apiport"].integer();
+                    pf.nodeport = cast(ushort) peer["nodeport"].integer();
                     _peersConf ~= pf;
                 }
             }
         }
 
-        logInfo("Self conf : ",_self,"  |  PeerConf : ",_peersConf);
+        logInfo("Self conf : ", _self, "  |  PeerConf : ", _peersConf);
     }
 
     @property PeerConf[] peersConf()
@@ -98,8 +97,8 @@ class NetonConfig
         return _self;
     }
 
-    private:
-        JSONValue _jconf;
-        PeerConf  _self;
-        PeerConf[]  _peersConf;
+private:
+    JSONValue _jconf;
+    PeerConf _self;
+    PeerConf[] _peersConf;
 }

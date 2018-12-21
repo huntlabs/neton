@@ -18,31 +18,26 @@ class Base
 
     enum PACK_HEAD_LEN = 4;
 
-    this( NetSocket sock , MessageReceiver receiver)
+    this(NetSocket sock, MessageReceiver receiver)
     {
         this.sock = sock;
         this.receiver = receiver;
-        sock.handler((in ubyte[] data){
-            onRead(data);
-        });
-        sock.closeHandler((){
-            onClose();
-        });
+        sock.handler((in ubyte[] data) { onRead(data); });
+        sock.closeHandler(() { onClose(); });
     }
-
 
     void onRead(in ubyte[] data)
     {
-        Message[] msgs; 
+        Message[] msgs;
         int index = 0;
-        int length = cast(int)data.length;
+        int length = cast(int) data.length;
         int used;
-		while(index < length)
-		{
+        while (index < length)
+        {
             int left = length - index;
-            if( headLen < PACK_HEAD_LEN)
+            if (headLen < PACK_HEAD_LEN)
             {
-                if(left >= PACK_HEAD_LEN - headLen)
+                if (left >= PACK_HEAD_LEN - headLen)
                 {
                     used = PACK_HEAD_LEN - headLen;
                     header[headLen .. headLen + used] = data[index .. index + used];
@@ -50,13 +45,13 @@ class Base
                     headLen += used;
                     msgLen = bigEndianToNative!int32_t(header);
                     buffer.length = 0;
-                    if(msgLen == 0)
-                    {   
-                        msgs ~= unserialize!Message(cast(byte[])buffer);
+                    if (msgLen == 0)
+                    {
+                        msgs ~= unserialize!Message(cast(byte[]) buffer);
                         headLen = 0;
                     }
                 }
-                 else
+                else
                 {
                     header[headLen .. headLen + left] = data[index .. index + left];
                     index += left;
@@ -65,12 +60,12 @@ class Base
             }
             else
             {
-                if(left >= msgLen - cast(int)buffer.length)
+                if (left >= msgLen - cast(int) buffer.length)
                 {
-                    used = msgLen - cast(int)buffer.length;
+                    used = msgLen - cast(int) buffer.length;
                     buffer ~= data[index .. index + used];
                     index += used;
-                    msgs ~= unserialize!Message(cast(byte[])buffer);
+                    msgs ~= unserialize!Message(cast(byte[]) buffer);
                     headLen = 0;
                 }
                 else
@@ -80,14 +75,13 @@ class Base
                 }
             }
 
-		}
-
-        foreach(m ; msgs)
-        {
-            logDebug("recv a message " , m);
-            receiver.step(m);
         }
 
+        foreach (m; msgs)
+        {
+            // logDebug("recv a message " , m);
+            receiver.step(m);
+        }
 
     }
 
@@ -95,13 +89,12 @@ class Base
     {
 
     }
-  
 
-    NetSocket                   sock;
+    NetSocket sock;
 
-    int                         msgLen;
-    ubyte[]			            buffer;	
-    int				            headLen = 0;
-	ubyte[PACK_HEAD_LEN]		header;
-    MessageReceiver             receiver;
+    int msgLen;
+    ubyte[] buffer;
+    int headLen = 0;
+    ubyte[PACK_HEAD_LEN] header;
+    MessageReceiver receiver;
 }
