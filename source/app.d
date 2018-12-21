@@ -9,7 +9,8 @@ import std.getopt;
 import std.exception;
 import std.stdio;
 import server.NetonConfig;
-// import hunt.util.serialize;
+import v3api.KVService;
+import grpc;
 
 bool initConfig(string[] args, out bool join)
 {
@@ -47,6 +48,14 @@ int main(string[] argv)
 	}
 
     NetonServer.instance.start(join);
+
+	string host = "0.0.0.0";
+	ushort port = 50051;
+
+	Server server = new Server();
+	server.listen(host , port);
+	server.register( new KVService());
+	server.start();
 	// NetonServer.instance.wait();
 	// getchar();
 	// while(1)
