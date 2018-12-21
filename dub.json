@@ -21,6 +21,9 @@
 		},
 		"rocksdb":{
 			"version" :"~>0.0.7"
+		},
+		"hunt-grpc":{
+			"path": "../hunt-grpc"
 		}
 	},
 	"versions":["HUNT_DEBUG2"]
