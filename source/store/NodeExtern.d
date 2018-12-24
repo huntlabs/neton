@@ -62,7 +62,7 @@ class NodeExtern {
                 res["dir"] = node["dir"].str;
                 if(!dir)
                 {
-                    if(startsWith(_key,service_prefix))
+                    if(startsWith(_key,SERVICE_PREFIX))
                         res["value"] = tryGetJsonFormat(node["value"].str);
                     else
                         res["value"] = node["value"];
@@ -90,7 +90,7 @@ class NodeExtern {
                                 sub["dir"]= j["dir"].str;
                                 if(j["dir"].str == "false")
                                 {
-                                     if(startsWith(subkey,service_prefix))
+                                     if(startsWith(subkey,SERVICE_PREFIX))
                                         sub["value"] = tryGetJsonFormat(j["value"].str);
                                     else
                                         sub["value"] = j["value"];
@@ -127,7 +127,7 @@ class NodeExtern {
             res["dir"] = node["dir"].str;
             if(!dir)
             {
-                if(startsWith(key,service_prefix))
+                if(startsWith(key,SERVICE_PREFIX))
                     res["value"] = tryGetJsonFormat(node["value"].str);
                 else
                     res["value"] = node["value"];

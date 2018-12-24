@@ -5,9 +5,19 @@ import std.string;
 import std.algorithm.searching;
 import std.json;
 
-const string service_prefix = "/service/";
+const string  SERVICE_PREFIX = "/service/";
+const string  LEASE_PREFIX = "/lease/";
+
 // if the key is "/foo/bar", it will produces result with path "/",
 // "/foo" and "/foo/bar"
+
+bool isRemained(string key)
+{
+    if (startsWith(key, SERVICE_PREFIX[0 .. $ - 1]) || startsWith(key, LEASE_PREFIX[0 .. $ - 1]))
+        return true;
+
+    return false;
+}
 
 string getSafeKey(string key)
 {

@@ -9,6 +9,7 @@ import std.bitmanip;
 import hunt.time;
 import hunt.logging;
 import hunt.lang.exception;
+import hunt.container;
 
 import etcdserverpb.rpc;
 
@@ -535,7 +536,7 @@ string Attach(LeaseID id, LeaseItem[] items)
 	l._mutex.writer().lock();
 	foreach (it; items)
 	{
-		l.itemSet[it] = new Object();
+		l.itemSet.add(it.Key);
 		this.itemMap[it] = id;
 	}
 	l._mutex.writer().unlock();
@@ -568,7 +569,7 @@ string Detach(LeaseID id, LeaseItem[] items)
 	foreach (it; items)
 	{
 		// delete(l.itemSet, it);
-		l.itemSet.remove(it);
+		l.itemSet.remove(it.Key);
 		// delete(this.itemMap, it);
 		this.itemMap.remove(it);
 	}
@@ -765,7 +766,7 @@ void scheduleCheckpointIfNeeded(Lease lease)
 		return;
 	}
 
-	if (lease.RemainingTTL() > int64(this.checkpointInterval/* .Seconds() */))
+	if (lease.RemainingTTL() > int64(this.checkpointInterval /* .Seconds() */ ))
 	{
 		// if (this.lg != null) {
 		// 	this.lg.Debug("Scheduling lease checkpoint",
@@ -775,7 +776,9 @@ void scheduleCheckpointIfNeeded(Lease lease)
 		// }
 		LeaseWithTime item = {
 		id:
-			lease.ID, time : Instant.now().getEpochSecond() + (this.checkpointInterval) /* .UnixNano() */ 
+			lease.ID, time : Instant.now().getEpochSecond() + (this.checkpointInterval) /* .UnixNano() */
+
+		
 		};
 		this.leaseCheckpointHeap.Push(item);
 	}
@@ -808,15 +811,15 @@ LeaseCheckpoint[] findDueScheduledCheckpoints(int checkpointLimit)
 		{
 			continue;
 		}
-		auto remainingTTL = int64((l.expiry - (now)/* .Seconds() */));
+		auto remainingTTL = int64((l.expiry - (now) /* .Seconds() */ ));
 		if (remainingTTL >= l.ttl)
 		{
 			continue;
 		}
 		// if (this.lg != null)
 		{
-			logDebug("Checkpointing lease --", "leaseID : ",
-					lt.id, "remainingTTL : ", remainingTTL);
+			logDebug("Checkpointing lease --", "leaseID : ", lt.id,
+					"remainingTTL : ", remainingTTL);
 		}
 		LeaseCheckpoint item = new LeaseCheckpoint();
 		item.ID = int64(lt.id);
@@ -824,6 +827,11 @@ LeaseCheckpoint[] findDueScheduledCheckpoints(int checkpointLimit)
 		cps ~= item;
 	}
 	return cps;
+}
+
+void init(Lease l)
+{
+	this.leaseMap[l.ID] = l;
 }
 
 void initAndRecover()
@@ -941,7 +949,7 @@ class Lease
 
 	// mu protects concurrent accesses to itemSet
 	ReadWriteMutex _mutex;
-	Object[LeaseItem] itemSet;
+	HashSet!string itemSet;
 	// revokec chan struct{}
 
 	bool expired()
@@ -1012,9 +1020,9 @@ class Lease
 	{
 		this._mutex.reader.lock();
 		string[] keys;
-		foreach (k, v; this.itemSet)
+		foreach (k; this.itemSet)
 		{
-			keys ~= k.Key;
+			keys ~= k;
 		}
 		this._mutex.reader.unlock();
 		return keys;
@@ -1030,7 +1038,7 @@ class Lease
 		{
 			return long.max;
 		}
-		return /* time.Until */(this.expiry - Instant.now().getEpochSecond());
+		return  /* time.Until */ (this.expiry - Instant.now().getEpochSecond());
 	}
 
 }
@@ -1046,10 +1054,11 @@ byte[] int64ToBytes(int64 n)
 	// binary.BigEndian.PutUint64(bytes, uint64(n))
 	byte[] bytes;
 	auto d = nativeToBigEndian(n);
-	foreach(b; d) {
-		bytes ~= cast(byte)b;
+	foreach (b; d)
+	{
+		bytes ~= cast(byte) b;
 	}
-	return bytes ;
+	return bytes;
 }
 
 // FakeLessor is a fake implementation of Lessor interface.

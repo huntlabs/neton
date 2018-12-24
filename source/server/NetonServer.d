@@ -161,8 +161,8 @@ class NetonServer : MessageReceiver
 					break;
 				case RequestMethod.METHOD_PUT:
 					{
-						if (startsWith(command.Key, service_prefix[0 .. $ - 1]))
-							res = "the " ~ service_prefix ~ " is remained";
+						if (isRemained(command.Key))
+							res = "the " ~ command.Key ~ " is remained";
 						else
 						{
 							auto param = tryGetJsonFormat(command.Params);
@@ -681,7 +681,7 @@ class NetonServer : MessageReceiver
 		// 		logWarning("-----*****start health check *****-----");
 		// 		_lastLeader = leader();
 		// 		starHealthCheck();
-		// 		loadServices(service_prefix[0..$-1]);
+		// 		loadServices(SERVICE_PREFIX[0..$-1]);
 		// 	}
 		// }
 		// else
@@ -828,7 +828,7 @@ class NetonServer : MessageReceiver
 	//         auto dir = node["dir"].str == "true" ? true:false;
 	//         if(!dir)
 	//         {
-	//             if(startsWith(key,service_prefix))
+	//             if(startsWith(key,SERVICE_PREFIX))
 	// 			{
 	// 				auto val = tryGetJsonFormat(node["value"].str);
 	// 				addHealthCheck(key,val);

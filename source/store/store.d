@@ -156,7 +156,7 @@ class Store : StoreInter
     Event Register(ref JSONValue server)
     {
         auto service = server["service"];
-        string id,name,key = service_prefix;
+        string id,name,key = SERVICE_PREFIX;
         if(service.type == JSON_TYPE.OBJECT)
         {
             id = toLower(service["id"].str);
@@ -186,7 +186,7 @@ class Store : StoreInter
 
     Event Deregister(ref JSONValue server)
     {
-        string id,name,key = service_prefix;
+        string id,name,key = SERVICE_PREFIX;
         if(server.type == JSON_TYPE.OBJECT)
         {
             id = toLower(server["id"].str);

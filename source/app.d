@@ -56,10 +56,7 @@ int main(string[] argv)
 	server.listen(host , port);
 	server.register( new KVService());
 	server.start();
-	// NetonServer.instance.wait();
-	// getchar();
-	// while(1)
-	// 	Thread.sleep(dur!"seconds"(1));
+
 	thread_joinAll();
 	writeln("**************stop");
 	return 0;
