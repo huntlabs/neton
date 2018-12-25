@@ -158,6 +158,16 @@ class LeaseClient
 		mixin(CMA!(LeaseTimeToLiveResponse , LeaseBase.SERVICE));
 	}
 
+	Status LeaseLeases( LeaseLeasesRequest request , ref LeaseLeasesResponse response)
+	{
+		mixin(CM!(LeaseBase.SERVICE));
+	}
+
+	void LeaseLeases( LeaseLeasesRequest request , void delegate(Status status , LeaseLeasesResponse response) dele)
+	{
+		mixin(CMA!(LeaseLeasesResponse , LeaseBase.SERVICE));
+	}
+
 
 	private:
 	Channel _channel;
@@ -175,6 +185,7 @@ class LeaseBase: GrpcService
 	Status LeaseRevoke(LeaseRevokeRequest , ref LeaseRevokeResponse){ return Status.OK; }
 	Status LeaseKeepAlive(ServerReaderWriter!(LeaseKeepAliveRequest , LeaseKeepAliveResponse)){ return Status.OK; }
 	Status LeaseTimeToLive(LeaseTimeToLiveRequest , ref LeaseTimeToLiveResponse){ return Status.OK; }
+	Status LeaseLeases(LeaseLeasesRequest , ref LeaseLeasesResponse){ return Status.OK; }
 
 	Status process(string method , GrpcStream stream)
 	{
@@ -184,6 +195,7 @@ class LeaseBase: GrpcService
 			mixin(SM!(LeaseRevokeRequest , LeaseRevokeResponse , "LeaseRevoke"));
 			mixin(SM3!(LeaseKeepAliveRequest , LeaseKeepAliveResponse , "LeaseKeepAlive"));
 			mixin(SM!(LeaseTimeToLiveRequest , LeaseTimeToLiveResponse , "LeaseTimeToLive"));
+			mixin(SM!(LeaseLeasesRequest , LeaseLeasesResponse , "LeaseLeases"));
 			mixin(NONE());
 		}
 	}
@@ -227,6 +239,16 @@ class ClusterClient
 		mixin(CMA!(MemberUpdateResponse , ClusterBase.SERVICE));
 	}
 
+	Status MemberList( MemberListRequest request , ref MemberListResponse response)
+	{
+		mixin(CM!(ClusterBase.SERVICE));
+	}
+
+	void MemberList( MemberListRequest request , void delegate(Status status , MemberListResponse response) dele)
+	{
+		mixin(CMA!(MemberListResponse , ClusterBase.SERVICE));
+	}
+
 
 	private:
 	Channel _channel;
@@ -243,6 +265,7 @@ class ClusterBase: GrpcService
 	Status MemberAdd(MemberAddRequest , ref MemberAddResponse){ return Status.OK; }
 	Status MemberRemove(MemberRemoveRequest , ref MemberRemoveResponse){ return Status.OK; }
 	Status MemberUpdate(MemberUpdateRequest , ref MemberUpdateResponse){ return Status.OK; }
+	Status MemberList(MemberListRequest , ref MemberListResponse){ return Status.OK; }
 
 	Status process(string method , GrpcStream stream)
 	{
@@ -251,6 +274,7 @@ class ClusterBase: GrpcService
 			mixin(SM!(MemberAddRequest , MemberAddResponse , "MemberAdd"));
 			mixin(SM!(MemberRemoveRequest , MemberRemoveResponse , "MemberRemove"));
 			mixin(SM!(MemberUpdateRequest , MemberUpdateResponse , "MemberUpdate"));
+			mixin(SM!(MemberListRequest , MemberListResponse , "MemberList"));
 			mixin(NONE());
 		}
 	}

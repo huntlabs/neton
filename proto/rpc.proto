@@ -67,9 +67,9 @@ service Lease {
   }
 
   // LeaseLeases lists all existing leases.
-  //rpc LeaseLeases(LeaseLeasesRequest) returns (LeaseLeasesResponse) {
+  rpc LeaseLeases(LeaseLeasesRequest) returns (LeaseLeasesResponse) {
   
-  //}
+  }
 }
 
 service Cluster {
@@ -89,9 +89,9 @@ service Cluster {
   }
 
   // MemberList lists all the members in the cluster.
-  //rpc MemberList(MemberListRequest) returns (MemberListResponse) {
+  rpc MemberList(MemberListRequest) returns (MemberListResponse) {
  
-  //}
+  }
 }
 
 message ResponseHeader {
@@ -305,8 +305,8 @@ message WatchCancelRequest {
   
   // Requests the a watch stream progress status be sent in the watch response stream as soon as
   // possible.
-  //message WatchProgressRequest {
- // }
+  message WatchProgressRequest {
+  }
 
 
 message WatchResponse {

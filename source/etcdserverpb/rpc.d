@@ -128,6 +128,10 @@ class WatchCancelRequest
     @Proto(1) long watchId = protoDefaultValue!long;
 }
 
+class WatchProgressRequest
+{
+}
+
 class WatchResponse
 {
     @Proto(1) ResponseHeader header = protoDefaultValue!ResponseHeader;
