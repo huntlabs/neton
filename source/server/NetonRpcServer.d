@@ -1,4 +1,4 @@
-module server.NetonServer;
+module server.NetonRpcServer;
 
 import hunt.raft;
 import hunt.net;
@@ -31,12 +31,20 @@ import store.watcher;
 import store.util;
 import std.algorithm.mutation;
 
+import v3api;
+import etcdserverpb.kv;
+import etcdserverpb.rpc;
+import etcdserverpb.rpcrpc;
+
+import util.Future;
+
 enum defaultSnapCount = 10;
 enum snapshotCatchUpEntriesN = 10000;
 
-class NetonServer : MessageReceiver
+alias Event = store.event.Event;
+class NetonRpcServer : MessageReceiver
 {
-	__gshared NetonServer _gserver;
+	__gshared NetonRpcServer _gserver;
 
 	this()
 	{
@@ -122,190 +130,136 @@ class NetonServer : MessageReceiver
 			switch (ents[i].Type)
 			{
 			case EntryType.EntryNormal:
-				if (ents[i].Data.length == 0)
-					break;
-
-				RequestCommand command = unserialize!RequestCommand(cast(byte[]) ents[i].Data);
-
-				string res;
-				iswatch = false;
-				switch (command.Method)
 				{
-				case RequestMethod.METHOD_GET:
-					{
-						//string value;
-						auto param = tryGetJsonFormat(command.Params);
-						logInfo("http GET param : ", param);
-						bool recursive = false;
-						if (param.type == JSON_TYPE.OBJECT && "recursive" in param)
-							recursive = param["recursive"].str == "true" ? true : false;
-						if (param.type == JSON_TYPE.OBJECT && ("wait" in param)
-								&& param["wait"].str == "true")
-						{
-							ulong waitIndex = 0;
-							if ("waitIndex" in param)
-								waitIndex = to!ulong(param["waitIndex"].str);
-							auto w = Store.instance.Watch(command.Key, recursive, false, waitIndex);
-							w.setHttpHash(command.Hash);
-							_watchers ~= w;
-							iswatch = true;
-						}
-						else
-						{
-							auto e = Store.instance.Get(command.Key, recursive, false);
-							//value = e.nodeValue();
-							res = makeJsonString(e);
-						}
+					if (ents[i].Data.length == 0)
+						break;
 
-					}
-					break;
-				case RequestMethod.METHOD_PUT:
+					RpcRequest command = unserialize!RpcRequest(cast(byte[]) ents[i].Data);
+					logDebug("publish CMD : ", command, " ID :", _ID);
+					store.event.Event resultEvent;
+					auto h = (command.Hash in _request);
+					iswatch = false;
+					switch (command.CMD)
 					{
-						if (isRemained(command.Key))
-							res = "the " ~ command.Key ~ " is remained";
-						else
+					case RpcReqCommand.RangeRequest:
 						{
-							auto param = tryGetJsonFormat(command.Params);
-							logInfo("http PUT param : ", param);
-							bool dir = false;
-							if (param.type == JSON_TYPE.OBJECT && "dir" in param)
-								dir = param["dir"].str == "true" ? true : false;
-
-							if (dir)
+							bool recursive = false;
+							resultEvent = Store.instance.Get(command.Key, recursive, false);
+							if (h != null)
 							{
-								auto e = Store.instance.CreateDir(command.Key);
-								res = makeJsonString(e);
-							}
-							else
-							{
-								string value;
-								if (param.type == JSON_TYPE.OBJECT && "value" in param)
-									value = param["value"].str;
-								auto e = Store.instance.Set(command.Key, false, value);
-								res = makeJsonString(e);
-							}
-						}
+								logDebug("rpc handler do response ");
 
-					}
-					break;
-				case RequestMethod.METHOD_UPDATESERVICE:
-					{
-						auto param = tryGetJsonFormat(command.Params);
-						logInfo("http update service param : ", param);
-						{
-							if (param.type == JSON_TYPE.OBJECT)
-								auto e = Store.instance.Set(command.Key, false, param.toString);
-							//res = makeJsonString(e);
-						}
-
-					}
-					break;
-				case RequestMethod.METHOD_DELETE:
-					{
-						auto param = tryGetJsonFormat(command.Params);
-						logInfo("http DELETE param : ", param);
-						bool recursive = false;
-						if (param.type == JSON_TYPE.OBJECT && "recursive" in param)
-							recursive = param["recursive"].str == "true" ? true : false;
-						auto e = Store.instance.Delete(command.Key, recursive);
-						res = makeJsonString(e);
-					}
-					break;
-				case RequestMethod.METHOD_POST:
-					{
-						auto param = tryGetJsonFormat(command.Params);
-						logInfo("http post param : ", param);
-						bool recursive = false;
-						if (param.type == JSON_TYPE.OBJECT)
-						{
-							if (startsWith(command.Key, "/register"))
-							{
-								auto e = Store.instance.Register(param);
-								res = makeJsonString(e);
-								if (e.isOk())
+								RangeResponse respon = new RangeResponse();
+								auto kv = new KeyValue();
+								kv.key = cast(ubyte[])(command.Key);
+								kv.value = cast(ubyte[])(resultEvent.rpcValue());
+								respon.count = 1;
+								respon.kvs ~= kv;
+								auto handler = cast(Future!(RangeRequest, RangeResponse))(*h);
+								if (handler !is null)
 								{
-									auto nd = e.nodeValue();
-									if ("key" in nd && "value" in nd)
-									{
-										// addHealthCheck(nd["key"].str,nd["value"]);
-									}
+									logDebug("handler : ", &handler);
+
+									logDebug("response key: ", cast(string)(handler.data().key));
+									handler.done(respon);
 								}
-							}
-							else if (startsWith(command.Key, "/deregister"))
-							{
-								auto e = Store.instance.Deregister(param);
-								res = makeJsonString(e);
-								if (e.isOk)
+								else
 								{
-									auto nd = e.nodeValue();
-									if ("key" in nd)
-									{
-										// removeHealthCheck(nd["key"].str);
-									}
+									logDebug("convert rpc handler is null ");
 								}
 							}
 							else
 							{
-								res = "can not sovle " ~ command.Key;
+								logDebug("rpc handler is null ");
 							}
 						}
-						else
+						break;
+					case RpcReqCommand.PutRequest:
 						{
-							res = "can not sovle " ~ command.Key;
+							resultEvent = Store.instance.Set(command.Key, false, command.Value);
+							if (h != null)
+							{
+								PutResponse respon = new PutResponse();
+								auto kv = new KeyValue();
+								kv.key = cast(ubyte[])(command.Key);
+								kv.value = cast(ubyte[])(resultEvent.rpcValue());
+								respon.prevKv = kv;
+								auto handler = cast(Future!(PutRequest, PutResponse))(*h);
+								if (handler !is null)
+								{
+									// logDebug("response key: ", cast(string)(handler.data().key));
+									handler.done(respon);
+								}
+								else
+								{
+									logDebug("convert rpc handler is null ");
+								}
+							}
+							else
+							{
+								logDebug("rpc handler is null ");
+							}
 						}
-
+						break;
+					case RpcReqCommand.DeleteRangeRequest:
+						{
+							resultEvent = Store.instance.Delete(command.Key, false);
+							if (h != null)
+							{
+								DeleteRangeResponse respon = new DeleteRangeResponse();
+								auto kv = new KeyValue();
+								kv.key = cast(ubyte[])(command.Key);
+								kv.value = cast(ubyte[])(resultEvent.rpcValue());
+								respon.prevKvs ~= kv;
+								if(resultEvent.isOk)
+									respon.deleted = respon.prevKvs.length;
+								auto handler = cast(Future!(DeleteRangeRequest, DeleteRangeResponse))(*h);
+								if (handler !is null)
+								{
+									// logDebug("response key: ", cast(string)(handler.data().key));
+									handler.done(respon);
+								}
+								else
+								{
+									logDebug("convert rpc handler is null ");
+								}
+							}
+							else
+							{
+								logDebug("rpc handler is null ");
+							}
+						}
+						break;
+					default:
+						break;
 					}
-					break;
-				default:
+
 					break;
 				}
-
-				//if leader
-				//if(_node.isLeader())
-				{
-					auto http = (command.Hash in _request);
-					if (http != null)
-					{
-						logInfo("  http request params : ", http.params());
-						if (!iswatch)
-						{
-							http.do_response(res);
-							http.close();
-							_request.remove(command.Hash);
-						}
-
-						logInfo("  http request array length : ", _request.length);
-					}
-				}
-				// else
-				// {
-				// 	//logInfo("not leader handle http request : ",_ID);
-				// }
-
-				break;
-				//next
 			case EntryType.EntryConfChange:
-				ConfChange cc = unserialize!ConfChange(cast(byte[]) ents[i].Data);
-				_confState = _node.ApplyConfChange(cc);
-				switch (cc.Type)
 				{
-				case ConfChangeType.ConfChangeAddNode:
-					if (cc.Context.length > 0)
-						addPeer(cc.NodeID, cc.Context);
-					break;
-				case ConfChangeType.ConfChangeRemoveNode:
-					if (cc.NodeID == _ID)
+					ConfChange cc = unserialize!ConfChange(cast(byte[]) ents[i].Data);
+					_confState = _node.ApplyConfChange(cc);
+					switch (cc.Type)
 					{
-						logWarning(_ID, " I've been removed from the cluster! Shutting down.");
-						return false;
+					case ConfChangeType.ConfChangeAddNode:
+						if (cc.Context.length > 0)
+							addPeer(cc.NodeID, cc.Context);
+						break;
+					case ConfChangeType.ConfChangeRemoveNode:
+						if (cc.NodeID == _ID)
+						{
+							logWarning(_ID, " I've been removed from the cluster! Shutting down.");
+							return false;
+						}
+						logWarning(_ID, " del node ", cc.NodeID);
+						delPeer(cc.NodeID);
+						break;
+					default:
+						break;
 					}
-					logWarning(_ID, " del node ", cc.NodeID);
-					delPeer(cc.NodeID);
-					break;
-				default:
 					break;
 				}
-				break;
 			default:
 
 			}
@@ -344,8 +298,10 @@ class NetonServer : MessageReceiver
 		_snapshotIndex = _appliedIndex;
 	}
 
-	void Propose(RequestCommand command, HttpBase h)
+	void Propose(RpcRequest command, Object h)
 	{
+		logDebug("***** RpcRequest.CMD : ", command.CMD, " key : ", command.Key);
+		
 		auto err = _node.Propose(cast(string) serialize(command));
 		if (err != ErrNil)
 		{
@@ -358,7 +314,7 @@ class NetonServer : MessageReceiver
 		}
 	}
 
-	void Propose(RequestCommand command)
+	void Propose(RpcRequest command)
 	{
 		auto err = _node.Propose(cast(string) serialize(command));
 		if (err != ErrNil)
@@ -367,7 +323,7 @@ class NetonServer : MessageReceiver
 		}
 	}
 
-	void ReadIndex(RequestCommand command, HttpBase h)
+	void ReadIndex(RpcRequest command, Object h)
 	{
 		_node.ReadIndex(cast(string) serialize(command));
 		_request[command.Hash] = h;
@@ -510,9 +466,9 @@ class NetonServer : MessageReceiver
 			_node = new RawNode(conf, peers);
 		}
 
-		_http = new NetServer!(HttpBase, NetonServer)(_ID, this);
+		// _http = new NetServer!(Object, NetonRpcServer)(_ID, this);
 
-		_http.listen("0.0.0.0", NetonConfig.instance.selfConf.apiport);
+		// _http.listen("0.0.0.0", NetonConfig.instance.selfConf.apiport);
 
 		_server = new NetServer!(Base, MessageReceiver)(_ID, this);
 
@@ -608,7 +564,7 @@ class NetonServer : MessageReceiver
 			// logInfo("----- read not update");
 			return;
 		}
-		//logInfo("------ready ------ ",_ID);
+		// logInfo("------ready ------ ", _ID);
 		_wal.Save(rd.hs, rd.Entries);
 		if (!IsEmptySnap(rd.snap))
 		{
@@ -631,79 +587,48 @@ class NetonServer : MessageReceiver
 		foreach (r; rd.ReadStates)
 		{
 			string res;
-			bool iswatch = false;
 			if (r.Index >= _appliedIndex)
 			{
-				RequestCommand command = unserialize!RequestCommand(cast(byte[]) r.RequestCtx);
+				RpcRequest command = unserialize!RpcRequest(cast(byte[]) r.RequestCtx);
 				auto h = command.Hash in _request;
 				if (h == null)
 				{
 					continue;
 				}
-				auto param = tryGetJsonFormat(command.Params);
-				logInfo("http GET param : ", param);
-				bool recursive = false;
-				if (param.type == JSON_TYPE.OBJECT && "recursive" in param)
-					recursive = param["recursive"].str == "true" ? true : false;
-				if (param.type == JSON_TYPE.OBJECT && ("wait" in param)
-						&& param["wait"].str == "true")
+				if (command.CMD == RpcReqCommand.RangeRequest)
 				{
-					ulong waitIndex = 0;
-					if ("waitIndex" in param)
-						waitIndex = to!ulong(param["waitIndex"].str);
-					auto w = Store.instance.Watch(command.Key, recursive, false, waitIndex);
-					w.setHttpHash(command.Hash);
-					_watchers ~= w;
-					iswatch = true;
+					auto e = Store.instance.Get(command.Key, false, false);
+
+					RangeResponse respon = new RangeResponse();
+					auto kv = new KeyValue();
+					kv.key = cast(ubyte[])(command.Key);
+					kv.value = cast(ubyte[])(e.rpcValue());
+					respon.count = 1;
+					respon.kvs ~= kv;
+					logDebug("handler111 : ", h.toHash(), " ", _request);
+
+					auto handler = cast(Future!(RangeRequest, RangeResponse))(*h);
+					if (handler !is null)
+					{
+						logDebug("handler : ", h.toHash());
+						// if(handler.data is null)
+						// 	logDebug("##----###");
+						logDebug("response key: ", cast(string)(handler.data().key));
+						handler.done(respon);
+					}
+					else
+					{
+						logDebug("convert rpc handler is null ");
+					}
+
 				}
-				else
-				{
-					auto e = Store.instance.Get(command.Key, recursive, false);
-					//value = e.nodeValue();
-					res = makeJsonString(e);
-				}
-				if (!iswatch)
-				{
-					h.do_response(res);
-					h.close();
-					_request.remove(command.Hash);
-				}
+
 			}
 		}
 
 		maybeTriggerSnapshot();
 		_node.Advance(rd);
 
-		// if(_node.isLeader())
-		// {
-		// 	if(leader() != _lastLeader)
-		// 	{
-		// 		logWarning("-----*****start health check *****-----");
-		// 		_lastLeader = leader();
-		// 		starHealthCheck();
-		// 		loadServices(SERVICE_PREFIX[0..$-1]);
-		// 	}
-		// }
-		// else
-		// {
-		// 	if(_healths.length > 0)
-		// 	{
-		// 		logWarning("-----*****stop health check *****-----");
-		// 		synchronized(_mutex)
-		// 		{
-		// 			if(_healthPoll !is null)
-		// 			{
-		// 				_healthPoll.stop();
-		// 				foreach(key;_healths.keys)
-		// 				{
-		// 					_healthPoll.delTimer(_healths[key].timerFd);
-		// 				}
-		// 			}
-		// 			_healths.clear;
-		// 			_healthPoll = null;
-		// 		}
-		// 	}
-		// }
 	}
 
 	void scanWatchers(Object sender)
@@ -715,32 +640,24 @@ class NetonServer : MessageReceiver
 				if (w.haveNotify)
 				{
 					logInfo("----- scaned notify key: ", w.key, " hash :", w.hash);
-					auto http = (w.hash in _request);
-					if (http != null)
-					{
-						auto es = w.events();
-						foreach (e; es)
-						{
-							auto res = makeJsonString(e);
-							//logInfo("----- response msg : ",res);
-							http.do_response(res);
-							http.close();
-							break;
-						}
-						_request.remove(w.hash);
-					}
-					removeWatcher(w.hash);
+					// auto http = (w.hash in _request);
+					// if (http != null)
+					// {
+					// 	auto es = w.events();
+					// 	foreach (e; es)
+					// 	{
+					// 		auto res = makeJsonString(e);
+					// 		//logInfo("----- response msg : ",res);
+					// 		http.do_response(res);
+					// 		http.close();
+					// 		break;
+					// 	}
+					// 	_request.remove(w.hash);
+					// }
+					// removeWatcher(w.hash);
 				}
 			}
 		}
-	}
-
-	void handleHttpClose(size_t hash)
-	{
-		auto http = (hash in _request);
-		if (http != null)
-			_request.remove(hash);
-		removeWatcher(hash);
 	}
 
 	void removeWatcher(size_t hash)
@@ -755,10 +672,10 @@ class NetonServer : MessageReceiver
 		logInfo("---watchers len : ", _watchers.length);
 	}
 
-	static NetonServer instance()
+	static NetonRpcServer instance()
 	{
 		if (_gserver is null)
-			_gserver = new NetonServer();
+			_gserver = new NetonRpcServer();
 		return _gserver;
 	}
 
@@ -767,110 +684,16 @@ class NetonServer : MessageReceiver
 		return _node._raft._lead;
 	}
 
-	void saveHttp(HttpBase h)
+	void saveHttp(Object h)
 	{
 		_request[h.toHash] = h;
 	}
 
-	// void starHealthCheck()
-	// {
-	// 	_healthPoll = new Epoll(100);
-	// 	_healthPoll.start();
-	// }
-
-	// void addHealthCheck(string key,ref JSONValue value)
-	// {
-	// 	if(!_node.isLeader)
-	// 		return;
-	// 	if(_healthPoll !is null)
-	// 	{
-	// 		 synchronized(_mutex)
-	// 		 {
-	// 			 auto health = new Health(key,value);
-	// 			if(key in _healths)
-	// 			{
-	// 				auto oldHlt = _healths[key];
-	// 				_healthPoll.delTimer(oldHlt.timerFd);
-	// 			}
-	// 			_healths[key] = health;
-	// 			_healthPoll.addTimer(&health.onTimer,health.interval_ms(),WheelType.WHEEL_PERIODIC);
-	// 		 }
-	// 	}
-	// 	logInfo("-----*****health check num : ",_healths.length);
-	// }
-
-	// void removeHealthCheck(string key)
-	// {
-	// 	if(!_node.isLeader)
-	// 		return;
-	// 	synchronized(_mutex)
-	// 	{
-	// 		if(key in _healths)
-	// 		{
-	// 			auto health = _healths[key];
-	// 			if(_healthPoll !is null)
-	// 			{
-	// 				_healthPoll.delTimer(health.timerFd);
-	// 			}
-	// 			_healths.remove(key);
-	// 		}
-	// 	}
-
-	// 	logInfo("-----*****health check num : ",_healths.length);
-	// }
-
-	// void loadServices(string key)
-	// {
-
-	//     JSONValue node = Store.instance().getJsonValue(key);
-	//     if(node.type != JSON_TYPE.NULL)
-	//     {
-	//         auto dir = node["dir"].str == "true" ? true:false;
-	//         if(!dir)
-	//         {
-	//             if(startsWith(key,SERVICE_PREFIX))
-	// 			{
-	// 				auto val = tryGetJsonFormat(node["value"].str);
-	// 				addHealthCheck(key,val);
-	// 			}
-	//             else
-	// 			{
-	// 			}
-	//             return ;
-	//         }
-	//         else
-	//         {
-	//             auto children = node["children"].str;
-	//             if(children.length == 0)
-	//             {
-	//                 return ;
-	//             }
-	//             else
-	//             {
-	//                 JSONValue[] subs;
-	//                 auto segments = split(children, ";");
-	//                 foreach(subkey;segments)
-	//                 {
-	//                     if(subkey.length != 0)
-	//                     {
-	//                         loadServices(subkey);
-	//                     }
-	//                 }
-	//                 return ;
-	//             }
-
-	//         }
-	//     }
-	//     else
-	//     {
-	//         return ;
-	//     }
-	// }
-
+private:
 	MemoryStorage _storage;
 	ulong _ID;
 	NetServer!(Base, MessageReceiver) _server;
-	NetServer!(HttpBase, NetonServer) _http;
+	// NetServer!(Object, NetonRpcServer) _http;
 
 	RaftClient[ulong] _clients;
 	RawNode _node;
@@ -882,7 +705,7 @@ class NetonServer : MessageReceiver
 	ulong _snapshotIndex;
 	ulong _appliedIndex;
 
-	HttpBase[ulong] _request;
+	Object[ulong] _request;
 
 	string _waldir; // path to WAL directory
 	string _snapdir; // path to snapshot directory

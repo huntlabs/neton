@@ -48,7 +48,8 @@ import lease;
  * key : {
 	 	"dir" : "false",
 		"value" : "some ..",
-		"leaseID": long.init
+		"leaseID": long.init,
+		"create_time" : 2333334422 ///unix seconds timestamp
  }
   key : {
 	  "dir" : "true",
@@ -61,7 +62,8 @@ import lease;
    * key : /lease/{leaseID}
    * value : {
    *			"id"  : {leaseID},
-   *			"ttl" : 12344, ///unix seconds timestamp
+   *			"ttl" : 12344, ///time to live
+   *			"create_time" : 13444244, ///unix seconds timestamp
    *	        "items":[ 
    *	   					{
    *	   						"key" : "attach key",
@@ -114,8 +116,8 @@ class RocksdbStore
 							{
 								Lease l = new Lease();
 								l.ID = leaseItem["id"].integer;
-								l.expiry = leaseItem["ttl"].integer;
-								l.ttl = l.expiry;
+								l.ttl = leaseItem["ttl"].integer;
+								l.expiry = l.ttl + leaseItem["create_time"].integer;
 								foreach (item; leaseItem["items"].array)
 								{
 									l.itemSet.add(item["key"].str);
@@ -319,6 +321,7 @@ class RocksdbStore
 			newLease["id"] = leaseid;
 			JSONValue[] items;
 			newLease["items"] = items;
+			newLease["create_time"] = Instant.now().getEpochSecond();
 			setLeaseKeyValue(LEASE_PREFIX ~ leaseid.to!string, newLease.toString);
 			return true;
 		}
@@ -337,6 +340,8 @@ class RocksdbStore
 		if (lease.type != JSONType.NULL)
 		{
 			lease["ttl"] = ttl;
+			lease["create_time"] = Instant.now().getEpochSecond();
+			
 			setLeaseKeyValue(LEASE_PREFIX ~ leaseid.to!string, lease.toString);
 			return true;
 		}
@@ -420,6 +425,8 @@ protected:
 		filevalue["dir"] = "false";
 		filevalue["value"] = value;
 		filevalue["leaseID"] = leaseid;
+		filevalue["create_time"] = Instant.now().getEpochSecond();
+
 
 		SetValue(key, filevalue.toString);
 	}

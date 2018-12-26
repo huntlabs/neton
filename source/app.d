@@ -1,7 +1,6 @@
 ﻿
-
-
 import server.NetonServer;
+import server.NetonRpcServer;
 import hunt.logging;
 import core.thread;
 import std.conv;
@@ -47,10 +46,10 @@ int main(string[] argv)
 		throw new Exception("init config error !");
 	}
 
-    NetonServer.instance.start(join);
+    NetonRpcServer.instance.start(join);
 
 	string host = "0.0.0.0";
-	ushort port = 50051;
+	ushort port = NetonConfig.instance.selfConf().rpcport;
 
 	Server server = new Server();
 	server.listen(host , port);

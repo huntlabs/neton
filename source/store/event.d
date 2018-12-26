@@ -126,6 +126,13 @@ class Event{
         _errorMsg = msg;
     }
 
+    string rpcValue()
+    {
+        if (this.error.length > 0)
+			return this.error;
+		return this.nodeValue().toString;
+    }
+
     private :
         	EventAction _action;
             NodeExtern  _node;

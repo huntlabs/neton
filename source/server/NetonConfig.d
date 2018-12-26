@@ -11,6 +11,7 @@ struct PeerConf
     string ip;
     ushort apiport;
     ushort nodeport;
+    ushort rpcport;
 }
 
 class NetonConfig
@@ -67,6 +68,7 @@ class NetonConfig
                 _self.id = self["id"].integer();
                 _self.apiport = cast(ushort) self["apiport"].integer();
                 _self.nodeport = cast(ushort) self["nodeport"].integer();
+                _self.rpcport = cast(ushort) self["rpcport"].integer();
             }
 
             if ("peers" in _jconf)
@@ -79,6 +81,7 @@ class NetonConfig
                     pf.ip = peer["ip"].str();
                     pf.apiport = cast(ushort) peer["apiport"].integer();
                     pf.nodeport = cast(ushort) peer["nodeport"].integer();
+                    pf.rpcport = cast(ushort) peer["rpcport"].integer();
                     _peersConf ~= pf;
                 }
             }

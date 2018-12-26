@@ -8,6 +8,7 @@ import store.watcher;
 import hunt.logging;
 import std.json;
 import std.uni;
+import std.algorithm.searching;
 import store.util;
 
 
@@ -69,7 +70,7 @@ class Store : StoreInter
     // If sorted is true, it will sort the content by keys.
     Event Get(string nodePath, bool recursive, bool sorted )
     {
-       
+        nodePath = getSafeKey(nodePath);
         auto e  = new Event(EventAction.Get, nodePath, 0,recursive);
         e.setNetonIndex( _currentIndex);
         //e.Node.loadInternalNode(n, recursive, sorted, s.clock)
@@ -80,7 +81,7 @@ class Store : StoreInter
     // set value
 	Event Set(string nodePath, bool dir, string value )
     {
-     
+        nodePath = getSafeKey(nodePath);
         // Set new value
         string error;
         auto ok= _kvStore.set(nodePath,value,error);
@@ -102,6 +103,8 @@ class Store : StoreInter
     // create dir
     Event CreateDir(string nodePath )
     {
+        nodePath = getSafeKey(nodePath);
+
         string error;
         auto ok= _kvStore.createDir(nodePath,error);
 
@@ -119,7 +122,8 @@ class Store : StoreInter
 
     // watch key or dir
     Watcher Watch(string key , bool recursive, bool stream , ulong sinceIndex)  {
-        
+        key = getSafeKey(key);
+
         auto keys = key;
         if (sinceIndex == 0) {
             sinceIndex = _currentIndex + 1;
@@ -134,6 +138,7 @@ class Store : StoreInter
 
     // Delete deletes the node at the given path.
     Event Delete(string nodePath,bool recursive = false) {
+        nodePath = getSafeKey(nodePath);
         
         _currentIndex++;
         auto e  = new Event(EventAction.Delete, nodePath, _currentIndex);
