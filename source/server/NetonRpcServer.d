@@ -35,6 +35,7 @@ import v3api;
 import etcdserverpb.kv;
 import etcdserverpb.rpc;
 import etcdserverpb.rpcrpc;
+import grpc;
 
 import util.Future;
 
@@ -162,6 +163,8 @@ class NetonRpcServer : MessageReceiver
 
 									logDebug("response key: ", cast(string)(handler.data().key));
 									handler.done(respon);
+									_request.remove(command.Hash);
+
 								}
 								else
 								{
@@ -189,6 +192,8 @@ class NetonRpcServer : MessageReceiver
 								{
 									// logDebug("response key: ", cast(string)(handler.data().key));
 									handler.done(respon);
+									_request.remove(command.Hash);
+
 								}
 								else
 								{
@@ -211,13 +216,16 @@ class NetonRpcServer : MessageReceiver
 								kv.key = cast(ubyte[])(command.Key);
 								kv.value = cast(ubyte[])(resultEvent.rpcValue());
 								respon.prevKvs ~= kv;
-								if(resultEvent.isOk)
+								if (resultEvent.isOk)
 									respon.deleted = respon.prevKvs.length;
-								auto handler = cast(Future!(DeleteRangeRequest, DeleteRangeResponse))(*h);
+								auto handler = cast(Future!(DeleteRangeRequest,
+										DeleteRangeResponse))(*h);
 								if (handler !is null)
 								{
 									// logDebug("response key: ", cast(string)(handler.data().key));
 									handler.done(respon);
+									_request.remove(command.Hash);
+
 								}
 								else
 								{
@@ -228,6 +236,13 @@ class NetonRpcServer : MessageReceiver
 							{
 								logDebug("rpc handler is null ");
 							}
+						}
+						break;
+					case RpcReqCommand.WatchRequest:
+						{
+							auto w = Store.instance.Watch(command.Key, false, false, 0);
+							w.setHttpHash(command.Hash);
+							_watchers ~= w;
 						}
 						break;
 					default:
@@ -301,7 +316,7 @@ class NetonRpcServer : MessageReceiver
 	void Propose(RpcRequest command, Object h)
 	{
 		logDebug("***** RpcRequest.CMD : ", command.CMD, " key : ", command.Key);
-		
+
 		auto err = _node.Propose(cast(string) serialize(command));
 		if (err != ErrNil)
 		{
@@ -615,12 +630,18 @@ class NetonRpcServer : MessageReceiver
 						// 	logDebug("##----###");
 						logDebug("response key: ", cast(string)(handler.data().key));
 						handler.done(respon);
+						_request.remove(command.Hash);
 					}
 					else
 					{
 						logDebug("convert rpc handler is null ");
 					}
-
+				}
+				else if (command.CMD == RpcReqCommand.WatchRequest)
+				{
+					auto w = Store.instance.Watch(command.Key, false, false, 0);
+					w.setHttpHash(command.Hash);
+					_watchers ~= w;
 				}
 
 			}
@@ -640,21 +661,37 @@ class NetonRpcServer : MessageReceiver
 				if (w.haveNotify)
 				{
 					logInfo("----- scaned notify key: ", w.key, " hash :", w.hash);
-					// auto http = (w.hash in _request);
-					// if (http != null)
-					// {
-					// 	auto es = w.events();
-					// 	foreach (e; es)
-					// 	{
-					// 		auto res = makeJsonString(e);
-					// 		//logInfo("----- response msg : ",res);
-					// 		http.do_response(res);
-					// 		http.close();
-					// 		break;
-					// 	}
-					// 	_request.remove(w.hash);
-					// }
-					// removeWatcher(w.hash);
+					auto h = (w.hash in _request);
+					if (h != null)
+					{
+						auto handler = cast(Future!(ServerReaderWriter!(WatchRequest, WatchResponse), WatchResponse))(*h);
+						if (handler is null)
+						{
+							continue;
+						}
+						WatchResponse respon = new WatchResponse();
+						respon.created = true;
+						respon.watchId = Store.instance.Index();
+						auto es = w.events();
+						foreach (e; es)
+						{
+							auto event = new etcdserverpb.kv.Event();
+							auto kv = new KeyValue();
+							kv.key = cast(ubyte[])(e.nodeKey());
+							kv.value = cast(ubyte[])(e.rpcValue());
+							event.kv = kv;
+							event.prevKv = kv;
+							if (e.action() == EventAction.Delete)
+								event.type = etcdserverpb.kv.Event.EventType.DELETE;
+							else
+								event.type = etcdserverpb.kv.Event.EventType.PUT;
+							respon.events ~= event;
+							logInfo("--- -> notify event key: ",e.nodeKey()," value : ",e.rpcValue()," type :",e.action());
+						}
+						handler.data().write(respon);
+						_request.remove(w.hash);
+					}
+					removeWatcher(w.hash);
 				}
 			}
 		}

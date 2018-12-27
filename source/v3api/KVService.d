@@ -30,7 +30,7 @@ class KVService : KVBase
         return Status.OK;
     }
 
-    override Status Put(PutRequest req , ref PutResponse response)
+    override Status Put(PutRequest req, ref PutResponse response)
     {
         auto f = new Future!(PutRequest, PutResponse)(req);
 
@@ -47,7 +47,7 @@ class KVService : KVBase
         return Status.OK;
     }
 
-    override Status DeleteRange(DeleteRangeRequest req , ref DeleteRangeResponse response)
+    override Status DeleteRange(DeleteRangeRequest req, ref DeleteRangeResponse response)
     {
         auto f = new Future!(DeleteRangeRequest, DeleteRangeResponse)(req);
 

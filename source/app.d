@@ -8,7 +8,7 @@ import std.getopt;
 import std.exception;
 import std.stdio;
 import server.NetonConfig;
-import v3api.KVService;
+import v3api;
 import grpc;
 
 bool initConfig(string[] args, out bool join)
@@ -54,6 +54,7 @@ int main(string[] argv)
 	Server server = new Server();
 	server.listen(host , port);
 	server.register( new KVService());
+	server.register( new WatchService());
 	server.start();
 
 	thread_joinAll();
