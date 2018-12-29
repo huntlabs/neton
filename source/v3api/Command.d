@@ -6,7 +6,12 @@ enum RpcReqCommand
 	PutRequest = 1,
 	DeleteRangeRequest = 2,
 	WatchRequest = 3,
-
+	LeaseGenIDRequest = 4,
+	LeaseGrantRequest = 5,
+	LeaseRevokeRequest = 6,
+	LeaseTimeToLiveRequest = 7,
+	LeaseLeasesRequest = 8,
+	LeaseKeepAliveRequest = 9,
 };
 
 struct RpcRequest
@@ -15,4 +20,6 @@ struct RpcRequest
 	string Key;
 	string Value;
 	size_t Hash;
+	long LeaseID;
+	long TTL;
 };

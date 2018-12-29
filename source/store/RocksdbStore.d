@@ -19,6 +19,9 @@ import rocksdb.options;
 
 import store.util;
 import lease;
+import etcdserverpb.rpc;
+import etcdserverpb.kv;
+import v3api.Command;
 
 /*
  * service register/deregister store format
@@ -61,6 +64,7 @@ import lease;
    * ****************  Lease  **************
    * key : /lease/{leaseID}
    * value : {
+	   			"dir" : "false",
    *			"id"  : {leaseID},
    *			"ttl" : 12344, ///time to live
    *			"create_time" : 13444244, ///unix seconds timestamp
@@ -73,16 +77,24 @@ import lease;
    *         }
    ***/
 
+/***    Gen Lease ID
+	key : LEASE_GEN_ID_PREFIX
+	value : {
+		  		"ID" : 1234
+			}
+ ****/
+
 class RocksdbStore
 {
-	this(ulong ID)
+	this(ulong ID, Lessor l)
 	{
 		auto opts = new DBOptions;
 		opts.createIfMissing = true;
 		opts.errorIfExists = false;
 
 		_rocksdb = new Database(opts, "rocks.db" ~ to!string(ID));
-		init();
+		_lessor = l;
+		init(l);
 	}
 
 	void init(Lessor lessor = null)
@@ -227,7 +239,7 @@ class RocksdbStore
 	JSONValue getJsonValue(string key)
 	{
 		auto jsonvalue = Lookup(key);
-		//logInfo("---getJsonValue key : ",key,"  value : ",jsonvalue);
+		// logInfo("---getJsonValue key : ",key,"  value : ",jsonvalue);
 		JSONValue jvalue;
 		if (jsonvalue.length == 0)
 			return jvalue;
@@ -311,41 +323,43 @@ class RocksdbStore
 		return true;
 	}
 
-	bool createLease(long leaseid, long ttl)
+	Lease grantLease(long leaseid, long ttl)
 	{
-		auto lease = getJsonValue(LEASE_PREFIX ~ leaseid.to!string);
-		if (lease.type == JSONType.NULL)
+		if (_lessor !is null)
 		{
-			JSONValue newLease;
-			newLease["ttl"] = ttl;
-			newLease["id"] = leaseid;
-			JSONValue[] items;
-			newLease["items"] = items;
-			newLease["create_time"] = Instant.now().getEpochSecond();
-			setLeaseKeyValue(LEASE_PREFIX ~ leaseid.to!string, newLease.toString);
-			return true;
+			auto l = _lessor.Grant(leaseid, ttl);
+			if (l is null)
+				return null;
+
+			auto lease = getJsonValue(LEASE_PREFIX ~ leaseid.to!string);
+			if (lease.type == JSONType.NULL)
+			{
+				JSONValue newLease;
+				newLease["dir"] = "false";
+				newLease["ttl"] = l.ttl;
+				newLease["id"] = leaseid;
+				JSONValue[] items;
+				newLease["items"] = items;
+				newLease["create_time"] = Instant.now().getEpochSecond();
+				setLeaseKeyValue(LEASE_PREFIX ~ leaseid.to!string, newLease.toString);
+
+				///update global leaseID
+				JSONValue leaseID;
+				leaseID["ID"] = leaseid;
+				SetValue(LEASE_GEN_ID_PREFIX, leaseID.toString);
+				return l;
+			}
 		}
-		return false;
+		return null;
 	}
 
-	bool delLease(long leaseid)
+	bool revokeLease(long leaseid)
 	{
-		Remove(LEASE_PREFIX ~ leaseid.to!string);
+		if (_lessor.Revoke(leaseid) is null)
+			Remove(LEASE_PREFIX ~ leaseid.to!string);
+		else
+			return false;
 		return true;
-	}
-
-	bool refreshLease(long leaseid, long ttl)
-	{
-		auto lease = getJsonValue(LEASE_PREFIX ~ leaseid.to!string);
-		if (lease.type != JSONType.NULL)
-		{
-			lease["ttl"] = ttl;
-			lease["create_time"] = Instant.now().getEpochSecond();
-			
-			setLeaseKeyValue(LEASE_PREFIX ~ leaseid.to!string, lease.toString);
-			return true;
-		}
-		return false;
 	}
 
 	bool attachToLease(string key, long leaseid)
@@ -353,11 +367,14 @@ class RocksdbStore
 		auto lease = getJsonValue(LEASE_PREFIX ~ leaseid.to!string);
 		if (lease.type != JSONType.NULL)
 		{
-			JSONValue item;
-			item["key"] = key;
-			item["time"] = Instant.now().getEpochSecond();
-			lease["items"] ~= item;
-			SetValue(LEASE_PREFIX ~ leaseid.to!string, lease.toString);
+			if (!canFind!((JSONValue b, string a) => b["key"].str == a)(lease["items"].array, key))
+			{
+				JSONValue item;
+				item["key"] = key;
+				item["time"] = Instant.now().getEpochSecond();
+				lease["items"].array ~= item;
+				SetValue(LEASE_PREFIX ~ leaseid.to!string, lease.toString);
+			}
 			return true;
 		}
 		return false;
@@ -396,6 +413,137 @@ class RocksdbStore
 		return false;
 	}
 
+	long generateLeaseID()
+	{
+		auto value = getJsonValue(LEASE_GEN_ID_PREFIX);
+		if (value.type != JSONType.NULL)
+		{
+			return value["ID"].integer + 1;
+		}
+		else
+			return 1;
+	}
+
+	LeaseTimeToLiveResponse leaseTimeToLive(long leaseid)
+	{
+		auto leaseItem = getJsonValue(LEASE_PREFIX ~ leaseid.to!string);
+		if (leaseItem.type != JSONType.NULL)
+		{
+			LeaseTimeToLiveResponse respon = new LeaseTimeToLiveResponse();
+
+			respon.ID = leaseid;
+			auto remainTTL = (leaseItem["create_time"].integer + leaseItem["ttl"].integer - Instant.now()
+					.getEpochSecond());
+			respon.TTL = remainTTL > 0 ? remainTTL : 0;
+			respon.grantedTTL = leaseItem["ttl"].integer;
+			foreach (item; leaseItem["items"].array)
+			{
+				respon.keys ~= cast(ubyte[])(item["key"].str);
+			}
+
+			return respon;
+		}
+		return null;
+	}
+
+	LeaseLeasesResponse leaseLeases()
+	{
+		auto leases = getJsonValue(LEASE_PREFIX[0 .. $ - 1]);
+		if (leases.type != JSONType.NULL)
+		{
+			auto lease_keys = leases["children"].str;
+			LeaseLeasesResponse response = new LeaseLeasesResponse();
+			if (lease_keys.length > 0)
+			{
+				auto leaseIDs = split(lease_keys, ";");
+				foreach (leaseID; leaseIDs)
+				{
+					if (leaseID.length != 0)
+					{
+						auto leaseItem = getJsonValue(leaseID);
+						if (leaseItem.type != JSONType.NULL)
+						{
+							LeaseStatus ls = new LeaseStatus();
+							ls.ID = leaseItem["id"].integer;
+							response.leases ~= ls;
+						}
+					}
+				}
+			}
+			return response;
+		}
+		return null;
+	}
+
+	LeaseKeepAliveResponse renewLease(RpcRequest req)
+	{
+		if (_lessor !is null)
+		{
+			auto newTTL = _lessor.Renew(req.LeaseID);
+			if (newTTL > 0)
+			{
+				auto lease = getJsonValue(LEASE_PREFIX ~ req.LeaseID.to!string);
+				if (lease.type != JSONType.NULL)
+				{
+					lease["ttl"] = newTTL;
+					lease["create_time"] = Instant.now().getEpochSecond();
+
+					setLeaseKeyValue(LEASE_PREFIX ~ req.LeaseID.to!string, lease.toString);
+
+					LeaseKeepAliveResponse respon = new LeaseKeepAliveResponse();
+					respon.ID = req.LeaseID;
+					respon.TTL = newTTL;
+					return respon;
+				}
+			}
+		}
+		logWarning("-----renewLease fail --------");
+		return null;
+	}
+
+	PutResponse put(RpcRequest req)
+	{
+		auto nodePath = getSafeKey(req.Key);
+		// Set new value
+		string error;
+		if (req.LeaseID != 0)
+		{
+			if (attachToLease(nodePath, req.LeaseID))
+			{
+				auto ok = set(nodePath, req.Value, error, req.LeaseID);
+				if (ok)
+				{
+					if (_lessor !is null)
+					{
+						LeaseItem item = {Key:
+						nodePath};
+						_lessor.Attach(req.LeaseID, [item]);
+					}
+					PutResponse respon = new PutResponse();
+					auto kv = new KeyValue();
+					kv.key = cast(ubyte[])(req.Key);
+					kv.value = cast(ubyte[])(req.Value);
+					respon.prevKv = kv;
+					return respon;
+				}
+			}
+		}
+		else
+		{
+			auto ok = set(nodePath, req.Value, error);
+			if (ok)
+			{
+				PutResponse respon = new PutResponse();
+				auto kv = new KeyValue();
+				kv.key = cast(ubyte[])(req.Key);
+				kv.value = cast(ubyte[])(req.Value);
+				respon.prevKv = kv;
+				return respon;
+			}
+		}
+		return null;
+	}
+
 protected:
 	void SetValue(string key, string value)
 	{
@@ -426,7 +574,6 @@ protected:
 		filevalue["value"] = value;
 		filevalue["leaseID"] = leaseid;
 		filevalue["create_time"] = Instant.now().getEpochSecond();
-
 
 		SetValue(key, filevalue.toString);
 	}
@@ -481,5 +628,5 @@ protected:
 
 private:
 	Database _rocksdb;
-
+	Lessor _lessor;
 }

@@ -38,6 +38,9 @@ import etcdserverpb.rpcrpc;
 import grpc;
 
 import util.Future;
+import util.Queue;
+
+import lease;
 
 enum defaultSnapCount = 10;
 enum snapshotCatchUpEntriesN = 10000;
@@ -49,6 +52,7 @@ class NetonRpcServer : MessageReceiver
 
 	this()
 	{
+		_proposeQueue = new Queue!RpcRequest();
 	}
 
 	void publishSnapshot(Snapshot snap)
@@ -125,6 +129,7 @@ class NetonRpcServer : MessageReceiver
 
 	bool publishEntries(Entry[] ents)
 	{
+
 		bool iswatch = false;
 		for (auto i = 0; i < ents.length; i++)
 		{
@@ -159,9 +164,6 @@ class NetonRpcServer : MessageReceiver
 								auto handler = cast(Future!(RangeRequest, RangeResponse))(*h);
 								if (handler !is null)
 								{
-									logDebug("handler : ", &handler);
-
-									logDebug("response key: ", cast(string)(handler.data().key));
 									handler.done(respon);
 									_request.remove(command.Hash);
 
@@ -173,27 +175,20 @@ class NetonRpcServer : MessageReceiver
 							}
 							else
 							{
-								logDebug("rpc handler is null ");
+								// logDebug("rpc handler is null ");
 							}
 						}
 						break;
 					case RpcReqCommand.PutRequest:
 						{
-							resultEvent = Store.instance.Set(command.Key, false, command.Value);
+							auto respon = Store.instance.put(command);
 							if (h != null)
 							{
-								PutResponse respon = new PutResponse();
-								auto kv = new KeyValue();
-								kv.key = cast(ubyte[])(command.Key);
-								kv.value = cast(ubyte[])(resultEvent.rpcValue());
-								respon.prevKv = kv;
 								auto handler = cast(Future!(PutRequest, PutResponse))(*h);
 								if (handler !is null)
 								{
-									// logDebug("response key: ", cast(string)(handler.data().key));
 									handler.done(respon);
 									_request.remove(command.Hash);
-
 								}
 								else
 								{
@@ -202,7 +197,7 @@ class NetonRpcServer : MessageReceiver
 							}
 							else
 							{
-								logDebug("rpc handler is null ");
+								// logDebug("rpc handler is null ");
 							}
 						}
 						break;
@@ -222,10 +217,8 @@ class NetonRpcServer : MessageReceiver
 										DeleteRangeResponse))(*h);
 								if (handler !is null)
 								{
-									// logDebug("response key: ", cast(string)(handler.data().key));
 									handler.done(respon);
 									_request.remove(command.Hash);
-
 								}
 								else
 								{
@@ -234,7 +227,7 @@ class NetonRpcServer : MessageReceiver
 							}
 							else
 							{
-								logDebug("rpc handler is null ");
+								// logDebug("rpc handler is null ");
 							}
 						}
 						break;
@@ -245,6 +238,157 @@ class NetonRpcServer : MessageReceiver
 							_watchers ~= w;
 						}
 						break;
+					case RpcReqCommand.LeaseGenIDRequest:
+						{
+							if (_node.isLeader) /// leader gen leaseID
+							{
+								long leaseID = Store.instance.generateLeaseID();
+								command.LeaseID = leaseID;
+								command.CMD = RpcReqCommand.LeaseGrantRequest;
+								Propose(command);
+							}
+						}
+						break;
+					case RpcReqCommand.LeaseGrantRequest:
+						{
+							Lease l = Store.instance.grantLease(command.LeaseID,command.TTL);
+							if (h != null)
+							{
+								LeaseGrantResponse respon = new LeaseGrantResponse();
+								respon.ID = command.LeaseID;
+								if(l is null)
+									respon.error = "grant fail";
+								else
+									respon.TTL = l.ttl;
+
+								auto handler = cast(Future!(LeaseGrantRequest,
+										LeaseGrantResponse))(*h);
+								if (handler !is null)
+								{
+									handler.done(respon);
+									_request.remove(command.Hash);
+								}
+								else
+								{
+									logDebug("convert rpc handler is null ");
+								}
+							}
+							else
+							{
+								// logDebug("rpc handler is null ");
+							}
+						}
+						break;
+					case RpcReqCommand.LeaseRevokeRequest:
+						{
+							auto ok = Store.instance.revokeLease(command.LeaseID);
+							if(!ok)
+							{
+								logWarning("revoke lease fail : ",command.LeaseID);
+							}
+							if (h != null)
+							{
+								LeaseRevokeResponse respon = new LeaseRevokeResponse();
+								
+								auto handler = cast(Future!(LeaseRevokeRequest,
+										LeaseRevokeResponse))(*h);
+								if (handler !is null)
+								{
+									handler.done(respon);
+									_request.remove(command.Hash);
+								}
+								else
+								{
+									logDebug("convert rpc handler is null ");
+								}
+							}
+							else
+							{
+								// logDebug("rpc handler is null ");
+							}
+						}
+						break;
+					case RpcReqCommand.LeaseTimeToLiveRequest:
+						{
+							auto respon = Store.instance.leaseTimeToLive(command.LeaseID);
+							if(respon is null)
+							{
+								logWarning("LeaseTimeToLiveRequest fail : ",command.LeaseID);
+							}
+							if (h != null)
+							{
+								auto handler = cast(Future!(LeaseTimeToLiveRequest,
+										LeaseTimeToLiveResponse))(*h);
+								if (handler !is null)
+								{
+									handler.done(respon);
+									_request.remove(command.Hash);
+								}
+								else
+								{
+									logDebug("convert rpc handler is null ");
+								}
+							}
+							else
+							{
+								// logDebug("rpc handler is null ");
+							}
+						}
+						break;
+					case RpcReqCommand.LeaseLeasesRequest:
+						{
+							auto respon = Store.instance.leaseLeases();
+							if(respon is null)
+							{
+								logWarning("LeaseLeasesRequest fail ");
+							}
+							if (h != null)
+							{
+								auto handler = cast(Future!(LeaseLeasesRequest,
+										LeaseLeasesResponse))(*h);
+								if (handler !is null)
+								{
+									handler.done(respon);
+									_request.remove(command.Hash);
+								}
+								else
+								{
+									logDebug("convert rpc handler is null ");
+								}
+							}
+							else
+							{
+								// logDebug("rpc handler is null ");
+							}
+						}
+						break;
+					case RpcReqCommand.LeaseKeepAliveRequest:
+						{
+							auto respon = Store.instance.renewLease(command);
+							if(respon is null)
+							{
+								logWarning("LeaseKeepAliveRequest fail : ",_ID);
+							}
+							if (h != null)
+							{
+								auto handler = cast(Future!(ServerReaderWriter!(LeaseKeepAliveRequest, LeaseKeepAliveResponse), LeaseKeepAliveResponse))(*h);
+								if (handler !is null)
+								{
+									handler.data().write(respon);
+									_request.remove(command.Hash);
+								}
+								else
+								{
+									logDebug("convert rpc handler is null ");
+								}
+							}
+							else
+							{
+								// logDebug("rpc handler is null ");
+							}
+						}
+						break;
+
 					default:
 						break;
 					}
@@ -317,25 +461,36 @@ class NetonRpcServer : MessageReceiver
 	{
 		logDebug("***** RpcRequest.CMD : ", command.CMD, " key : ", command.Key);
 
-		auto err = _node.Propose(cast(string) serialize(command));
-		if (err != ErrNil)
+		// auto err = _node.Propose(cast(string) serialize(command));
+		// if (err != ErrNil)
+		// {
+		// 	logError("---------", err);
+		// }
+		// else
+		// {
+		// 	//logInfo("--------- request hash ",command.Hash);
+		// 	_request[command.Hash] = h;
+		// }
+		_request[command.Hash] = h;
+		Propose(command);
+	}
+
+	void onPropose(Object)
+	{
+		auto req = _proposeQueue.pop();
+		if(req != req.init)
 		{
-			logError("---------", err);
-		}
-		else
-		{
-			//logInfo("--------- request hash ",command.Hash);
-			_request[command.Hash] = h;
+			auto err = _node.Propose(cast(string) serialize(req));
+			if (err != ErrNil)
+			{
+				logError("---------", err);
+			}
 		}
 	}
 
 	void Propose(RpcRequest command)
 	{
-		auto err = _node.Propose(cast(string) serialize(command));
-		if (err != ErrNil)
-		{
-			logError("---------", err);
-		}
+		_proposeQueue.push(command);
 	}
 
 	void ReadIndex(RpcRequest command, Object h)
@@ -445,7 +600,11 @@ class NetonRpcServer : MessageReceiver
 
 		Config conf = new Config();
 
-		Store.instance.Init(_ID);
+		LessorConfig lessorConf;
+		lessorConf.MinLeaseTTL = 1;
+		_lessor = NewLessor(lessorConf);
+
+		Store.instance.Init(_ID, _lessor);
 
 		conf._ID = _ID;
 		conf._ElectionTick = 10;
@@ -500,6 +659,10 @@ class NetonRpcServer : MessageReceiver
 				&scanWatchers).start();
 
 		new Timer(NetUtil.defaultEventLoopGroup().nextLoop(), 1000.msecs).onTick(&onTimer).start();
+
+		new Timer(NetUtil.defaultEventLoopGroup().nextLoop(), 1.seconds).onTick(&onLessor).start();
+
+		new Timer(NetUtil.defaultEventLoopGroup().nextLoop(), 100.msecs).onTick(&onPropose).start();
 
 		NetUtil.startEventLoop(-1);
 
@@ -565,6 +728,15 @@ class NetonRpcServer : MessageReceiver
 			_mutex.unlock();
 
 		_node.Tick();
+	}
+
+	void onLessor(Object sender)
+	{
+		_mutex.lock();
+		scope (exit)
+			_mutex.unlock();
+
+		_lessor.runLoop();
 	}
 
 	void ready(Object sender)
@@ -650,6 +822,18 @@ class NetonRpcServer : MessageReceiver
 		maybeTriggerSnapshot();
 		_node.Advance(rd);
 
+		if (leader() != _lastLeader)
+		{
+			_lastLeader = leader();
+			if (_node.isLeader())
+			{
+				if (_lessor !is null)
+					_lessor.Promote(1);
+			}
+			else
+				_lessor.Demote();
+		}
+
 	}
 
 	void scanWatchers(Object sender)
@@ -664,14 +848,27 @@ class NetonRpcServer : MessageReceiver
 					auto h = (w.hash in _request);
 					if (h != null)
 					{
-						auto handler = cast(Future!(ServerReaderWriter!(WatchRequest, WatchResponse), WatchResponse))(*h);
+						auto handler = cast(Future!(ServerReaderWriter!(WatchRequest,
+								WatchResponse), WatchResponse))(*h);
 						if (handler is null)
 						{
+							logWarning("--- watch handler convert fail ---");
 							continue;
 						}
 						WatchResponse respon = new WatchResponse();
+						auto header = new ResponseHeader();
+						header.clusterId = 1;
+						header.memberId = 1;
+						header.raftTerm = 1;
+						header.revision = 1 ;
+						respon.header = header;
 						respon.created = true;
-						respon.watchId = Store.instance.Index();
+						respon.watchId = 100;
+
+						handler.data().write(respon);
+
+						respon.created = false;
+
 						auto es = w.events();
 						foreach (e; es)
 						{
@@ -686,7 +883,8 @@ class NetonRpcServer : MessageReceiver
 							else
 								event.type = etcdserverpb.kv.Event.EventType.PUT;
 							respon.events ~= event;
-							logInfo("--- -> notify event key: ",e.nodeKey()," value : ",e.rpcValue()," type :",e.action());
+							logInfo("--- -> notify event key: ", e.nodeKey(),
+									" value : ", e.rpcValue(), " type :", e.action());
 						}
 						handler.data().write(respon);
 						_request.remove(w.hash);
@@ -730,7 +928,6 @@ private:
 	MemoryStorage _storage;
 	ulong _ID;
 	NetServer!(Base, MessageReceiver) _server;
-	// NetServer!(Object, NetonRpcServer) _http;
 
 	RaftClient[ulong] _clients;
 	RawNode _node;
@@ -750,8 +947,9 @@ private:
 	WAL _wal;
 	Watcher[] _watchers;
 
-	// Poll 									_healthPoll;	 	//eventloop for health check
-	Health[string] _healths;
 	ulong _lastLeader = 0;
 	Mutex _mutex;
+
+	Lessor _lessor;
+	Queue!RpcRequest _proposeQueue;
 }

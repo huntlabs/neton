@@ -5,6 +5,7 @@ import std.math;
 import core.sync.mutex;
 import core.sync.rwmutex;
 import std.bitmanip;
+import core.thread;
 
 import hunt.time;
 import hunt.logging;
@@ -12,6 +13,8 @@ import hunt.lang.exception;
 import hunt.container;
 
 import etcdserverpb.rpc;
+import server.NetonRpcServer;
+import v3api.Command;
 
 import lease.Heap;
 import lease.LeaseQueue;
@@ -131,6 +134,7 @@ class Lessor
 	// demotec is set when the lessor is the primary.
 	// demotec will be closed if the lessor is demoted.
 	// demotec chan struct{}
+	bool _isPrimary = false;
 
 	Lease[LeaseID] leaseMap;
 	Heap!LeaseQueue leaseHeap;
@@ -166,6 +170,7 @@ class Lessor
 
 	this(int64 ttl, long interval)
 	{
+		_mutex = new Mutex();
 		minLeaseTTL = ttl;
 		checkpointInterval = interval;
 	}
@@ -186,8 +191,8 @@ class Lessor
 
 	bool isPrimary()
 	{
-		implementationMissing();
-		return false;
+		// implementationMissing();
+		return _isPrimary;
 		// return this.demotec != null;
 	}
 
@@ -232,8 +237,7 @@ class Lessor
 		scope (exit)
 			_mutex.unlock();
 
-		auto ok = this.leaseMap[id];
-		if (ok)
+		if (id in this.leaseMap)
 		{
 			// throw new Exception("ErrLeaseExists");
 			return null;
@@ -255,628 +259,640 @@ class Lessor
 
 		this.leaseMap[id] = l;
 		LeaseWithTime item = {id:
-		l.ID, time : l.expiry /* .UnixNano() */ };
-	this.leaseHeap.Push(item);
+		l.ID, time : l.expiry};
+		this.leaseHeap.Push(item);
 
-	l.persistTo( /* this.b */ );
+		// l.persistTo( /* this.b */ );
 
-	///@gxc
-	// leaseTotalTTLs.Observe(float64(l.ttl));
-	// leaseGranted.Inc();
+		///@gxc
+		// leaseTotalTTLs.Observe(float64(l.ttl));
+		// leaseGranted.Inc();
 
-	if (this.isPrimary())
-	{
-		this.scheduleCheckpointIfNeeded(l);
+		if (this.isPrimary())
+		{
+			this.scheduleCheckpointIfNeeded(l);
+		}
+
+		return l;
 	}
 
-	return l;
-}
-
-string Revoke(LeaseID id)
-{
-	_mutex.lock();
-
-	auto l = this.leaseMap[id];
-	if (l is null)
+	string Revoke(LeaseID id)
 	{
+		_mutex.lock();
+
+		auto l = (id in this.leaseMap);
+		if (l == null)
+		{
+			this._mutex.unlock();
+			return ErrLeaseNotFound;
+		}
+		// scope (exit)
+		// 	close(l.revokec);
+		// unlock before doing external work
 		this._mutex.unlock();
-		return ErrLeaseNotFound;
-	}
-	// scope (exit)
-	// 	close(l.revokec);
-	// unlock before doing external work
-	this._mutex.unlock();
 
-	if (this.rd is null)
-	{
+		// if (this.rd is null)
+		// {
+		// 	return null;
+		// }
+
+		// auto txn = this.rd();
+
+		// sort keys so deletes are in same order among all members,
+		// otherwise the backened hashes will be different
+		auto keys = l.Keys();
+		// sort.StringSlice(keys).Sort();
+		foreach (key; keys)
+		{
+			// txn.DeleteRange(cast(byte[])(key), null);
+			logWarning("revoke lease attach's key : ", key);
+			RpcRequest rreq;
+			rreq.CMD = RpcReqCommand.DeleteRangeRequest;
+			rreq.Key = key;
+			NetonRpcServer.instance.Propose(rreq);
+		}
+
+		_mutex.lock();
+		scope (exit)
+			_mutex.unlock();
+		// delete(this.leaseMap, l.ID);
+		this.leaseMap.remove(l.ID);
+		// lease deletion needs to be in the same backend transaction with the
+		// kv deletion. Or we might end up with not executing the revoke or not
+		// deleting the keys if etcdserver fails in between.
+		// this.b.BatchTx().UnsafeDelete(leaseBucketName, int64ToBytes(int64(l.ID)));
+
+		// txn.End();
+
+		// leaseRevoked.Inc();
 		return null;
 	}
 
-	auto txn = this.rd();
-
-	// sort keys so deletes are in same order among all members,
-	// otherwise the backened hashes will be different
-	auto keys = l.Keys();
-	// sort.StringSlice(keys).Sort();
-	foreach (key; keys)
-	{
-		txn.DeleteRange(cast(byte[])(key), null);
-	}
-
-	_mutex.lock();
-	scope (exit)
-		_mutex.unlock();
-	// delete(this.leaseMap, l.ID);
-	this.leaseMap.remove(l.ID);
-	// lease deletion needs to be in the same backend transaction with the
-	// kv deletion. Or we might end up with not executing the revoke or not
-	// deleting the keys if etcdserver fails in between.
-	// this.b.BatchTx().UnsafeDelete(leaseBucketName, int64ToBytes(int64(l.ID)));
-
-	txn.End();
-
-	// leaseRevoked.Inc();
-	return null;
-}
-
-string Checkpoint(LeaseID id, int64 remainingTTL)
-{
-	_mutex.lock();
-	scope (exit)
-		_mutex.unlock();
-
-	auto l = this.leaseMap[id];
-	if (l !is null)
-	{
-		// when checkpointing, we only update the remainingTTL, Promote is responsible for applying this to lease expiry
-		l.remainingTTL = remainingTTL;
-		if (this.isPrimary())
-		{
-			// schedule the next checkpoint as needed
-			this.scheduleCheckpointIfNeeded(l);
-		}
-	}
-	return null;
-}
-
-// Renew renews an existing lease. If the given lease does not exist or
-// has expired, an error will be returned.
-int64 Renew(LeaseID id)
-{
-	_mutex.lock();
-
-	scope (exit)
-		_mutex.unlock();
-
-	if (!this.isPrimary())
-	{
-		// forward renew request to primary instead of returning error.
-		return -1;
-	}
-
-	// auto demotec = this.demotec;
-
-	auto l = this.leaseMap[id];
-	if (l is null)
-	{
-		return -1; /* , ErrLeaseNotFound */
-	}
-
-	if (l.expired())
-	{
-		this._mutex.unlock();
-		// unlock = func() {}
-		///@gxc
-		// select
-		// {
-		// 	// A expired lease might be pending for revoking or going through
-		// 	// quorum to be revoked. To be accurate, renew request must wait for the
-		// 	// deletion to complete.
-		// 	case  <  - l.revokec : return  - 1, ErrLeaseNotFound // The expired lease might fail to be revoked if the primary changes.
-		// 	// The caller will retry on ErrNotPrimary.
-		// 	case  <  - demotec
-		// 		: return  - 1, ErrNotPrimarycase <  - this.stopC : return  - 1, ErrNotPrimary
-		// }
-		return -1;
-	}
-
-	// Clear remaining TTL when we renew if it is set
-	// By applying a RAFT entry only when the remainingTTL is already set, we limit the number
-	// of RAFT entries written per lease to a max of 2 per checkpoint interval.
-	if (this.cp != null && l.remainingTTL > 0)
-	{
-		LeaseCheckpoint[] cps;
-		LeaseCheckpoint ckp = new LeaseCheckpoint();
-		ckp.ID = int64(l.ID);
-		ckp.remainingTTL = 0;
-
-		cps ~= ckp;
-		LeaseCheckpointRequest req = new LeaseCheckpointRequest();
-		req.checkpoints ~= ckp;
-		this.cp( /* context.Background(),  */ req);
-	}
-
-	l.refresh(0);
-	LeaseWithTime item = {id:
-	l.ID, time : l.expiry /* .UnixNano() */ };
-this.leaseHeap.Push(item);
-
-// leaseRenewed.Inc();
-return l.ttl /* , null */ ;
-}
-
-Lease Lookup(LeaseID id)
-{
-	this._mutex.lock();
-	scope (exit)
-		this._mutex.unlock();
-	return this.leaseMap[id];
-}
-
-Lease[] unsafeLeases()
-{
-	Lease[] leases;
-	foreach (LeaseID k, Lease v; this.leaseMap)
-	{
-		leases ~= v;
-	}
-	return leases;
-}
-
-Lease[] Leases()
-{
-	this._mutex.lock();
-	auto ls = this.unsafeLeases();
-	this._mutex.unlock();
-	// sort.Sort(leasesByExpiry(ls));
-	return ls;
-}
-
-void Promote(long extend)
-{
-	_mutex.lock();
-	scope (exit)
-		_mutex.unlock();
-
-	// this.demotec = make(chan struct
-	// 	{
-	// });
-
-	// refresh the expiries of all leases.
-	foreach (LeaseID k, Lease l; this.leaseMap)
-	{
-		l.refresh(extend);
-		LeaseWithTime item = {id:
-		l.ID, time : l.expiry /* .UnixNano() */ };
-	this.leaseHeap.Push(item);
-}
-
-if ((this.leaseMap.length) < leaseRevokeRate)
-{
-	// no possibility of lease pile-up
-	return;
-}
-
-// adjust expiries in case of overlap
-auto leases = this.unsafeLeases();
-// sort.Sort(leasesByExpiry(leases));
-
-auto baseWindow = leases[0].Remaining();
-auto nextWindow = baseWindow + 1 /* time.Second */ ;
-auto expires = 0;
-// have fewer expires than the total revoke rate so piled up leases
-// don't consume the entire revoke limit
-auto targetExpiresPerSecond = (3 * leaseRevokeRate) / 4;
-foreach (l; leases)
-{
-	auto remaining = l.Remaining();
-	if (remaining > nextWindow)
-	{
-		baseWindow = remaining;
-		nextWindow = baseWindow + 1 /* time.Second */ ;
-		expires = 1;
-		continue;
-	}
-	expires++;
-	if (expires <= targetExpiresPerSecond)
-	{
-		continue;
-	}
-	auto rateDelay = float64(1 /* time.Second */ ) * (
-			float64(expires) / float64(targetExpiresPerSecond));
-	// If leases are extended by n seconds, leases n seconds ahead of the
-	// base window should be extended by only one second.
-	rateDelay -= float64(remaining - baseWindow);
-	auto delay = /* time.Duration */ (rateDelay);
-	nextWindow = baseWindow + delay;
-	l.refresh(delay + extend);
-	LeaseWithTime item = {id:
-	l.ID, time : l.expiry /* .UnixNano() */ };
-this.leaseHeap.Push(item);
-this.scheduleCheckpointIfNeeded(l);
-}
-}
-
-void Demote()
-{
-	_mutex.lock();
-	scope (exit)
-		_mutex.unlock();
-
-	// set the expiries of all leases to forever
-	foreach (LeaseID k, Lease l; this.leaseMap)
-	{
-		l.forever();
-	}
-
-	this.clearScheduledLeasesCheckpoints();
-
-	// if (this.demotec != null)
-	// {
-	// 	close(this.demotec);
-	// 	this.demotec = null;
-	// }
-}
-
-// Attach attaches items to the lease with given ID. When the lease
-// expires, the attached items will be automatically removed.
-// If the given lease does not exist, an error will be returned.
-string Attach(LeaseID id, LeaseItem[] items)
-{
-	_mutex.lock();
-	scope (exit)
-		_mutex.unlock();
-
-	auto l = this.leaseMap[id];
-	if (l is null)
-	{
-		return ErrLeaseNotFound;
-	}
-
-	l._mutex.writer().lock();
-	foreach (it; items)
-	{
-		l.itemSet.add(it.Key);
-		this.itemMap[it] = id;
-	}
-	l._mutex.writer().unlock();
-	return null;
-}
-
-LeaseID GetLease(LeaseItem item)
-{
-	this._mutex.lock();
-	auto id = this.itemMap[item];
-	this._mutex.unlock();
-	return id;
-}
-
-// Detach detaches items from the lease with given ID.
-// If the given lease does not exist, an error will be returned.
-string Detach(LeaseID id, LeaseItem[] items)
-{
-	_mutex.lock();
-	scope (exit)
-		_mutex.unlock();
-
-	auto l = this.leaseMap[id];
-	if (l is null)
-	{
-		return ErrLeaseNotFound;
-	}
-
-	l._mutex.writer().lock();
-	foreach (it; items)
-	{
-		// delete(l.itemSet, it);
-		l.itemSet.remove(it.Key);
-		// delete(this.itemMap, it);
-		this.itemMap.remove(it);
-	}
-	l._mutex.writer().unlock();
-	return null;
-}
-
-void Recover( /* backend.Backend b, */ RangeDeleter rd)
-{
-	_mutex.lock();
-	scope (exit)
-		_mutex.unlock();
-
-	// this.b = b;
-	this.rd = rd;
-	this.leaseMap.clear;
-	this.itemMap.clear;
-	this.initAndRecover();
-}
-
-//  ExpiredLeasesC() <-chan []*Lease {
-// 	return this.expiredC;
-// }
-
-//  void Stop() {
-// 	close(this.stopC)
-// 	<-this.doneC
-// }
-
-// void runLoop() {
-// 	defer close(this.doneC);
-
-// 	for {
-// 		this.revokeExpiredLeases()
-// 		this.checkpointScheduledLeases()
-
-// 		select {
-// 		case <-time.After(500 * time.Millisecond):
-// 		case <-this.stopC:
-// 			return
-// 		}
-// 	}
-// }
-
-// revokeExpiredLeases finds all leases past their expiry and sends them to epxired channel for
-// to be revoked.
-void revokeExpiredLeases()
-{
-	Lease[] ls;
-
-	// rate limit
-	auto revokeLimit = leaseRevokeRate / 2;
-
-	this._mutex.lock();
-	if (this.isPrimary())
-	{
-		ls = this.findExpiredLeases(revokeLimit);
-	}
-	this._mutex.unlock();
-
-	if ((ls.length) != 0)
-	{
-		///@gxc
-		implementationMissing();
-		// select
-		// {
-		// case  <  - this.stopC : return case this.expiredC <  - ls : default :  // the receiver of expiredC is probably busy handling
-		// 	// other stuff
-		// 	// let's try this next time after 500ms
-		// }
-	}
-}
-
-// checkpointScheduledLeases finds all scheduled lease checkpoints that are due and
-// submits them to the checkpointer to persist them to the consensus log.
-void checkpointScheduledLeases()
-{
-	LeaseCheckpoint[] cps;
-
-	// rate limit
-	for (int i = 0; i < leaseCheckpointRate / 2; i++)
+	string Checkpoint(LeaseID id, int64 remainingTTL)
 	{
 		_mutex.lock();
-		if (this.isPrimary())
-		{
-			cps = this.findDueScheduledCheckpoints(maxLeaseCheckpointBatchSize);
-		}
-		this._mutex.unlock();
+		scope (exit)
+			_mutex.unlock();
 
-		if ((cps.length) != 0)
+		auto l = (id in this.leaseMap);
+		if (l != null)
 		{
-			LeaseCheckpointRequest req = new LeaseCheckpointRequest();
-			req.checkpoints = cps;
-			this.cp( /* context.Background(),  */ req);
+			// when checkpointing, we only update the remainingTTL, Promote is responsible for applying this to lease expiry
+			l.remainingTTL = remainingTTL;
+			if (this.isPrimary())
+			{
+				// schedule the next checkpoint as needed
+				this.scheduleCheckpointIfNeeded(*l);
+			}
 		}
-		if ((cps.length) < maxLeaseCheckpointBatchSize)
-		{
-			return;
-		}
-	}
-}
-
-void clearScheduledLeasesCheckpoints()
-{
-	this.leaseCheckpointHeap.clear();
-}
-
-// expireExists returns true if expiry items exist.
-// It pops only when expiry item exists.
-// "next" is true, to indicate that it may exist in next attempt.
-Tuple!(Lease, bool, bool) expireExists()
-{
-	Tuple!(Lease, bool, bool) result;
-	if (this.leaseHeap.length() == 0)
-	{
-		result[0] = null;
-		result[1] = false;
-		result[2] = false;
-		return result;
+		return null;
 	}
 
-	auto item = this.leaseHeap.get!LeaseWithTime(0);
-	result[0] = this.leaseMap[item.id];
-	if (result[0] is null)
+	// Renew renews an existing lease. If the given lease does not exist or
+	// has expired, an error will be returned.
+	int64 Renew(LeaseID id)
 	{
-		// lease has expired or been revoked
-		// no need to revoke (nothing is expiry)
-		this.leaseHeap.Pop!LeaseWithTime(); // O(log N)
-		result[1] = false;
-		result[2] = true;
-		return result;
-	}
+		_mutex.lock();
 
-	if (Instant.now().getEpochSecond() < item.time) /* expiration time */
-	{
-		// Candidate expirations are caught up, reinsert this item
-		// and no need to revoke (nothing is expiry)
-		result[1] = false;
-		result[2] = false;
-		return result;
-	}
-	// if the lease is actually expired, add to the removal list. If it is not expired, we can ignore it because another entry will have been inserted into the heap
+		scope (exit)
+			_mutex.unlock();
 
-	this.leaseHeap.Pop!LeaseWithTime(); // O(log N)
-	result[1] = true;
-	result[2] = false;
-	return result;
-}
+		// if (!this.isPrimary())
+		// {
+		// 	// forward renew request to primary instead of returning error.
+		// 	return -1;
+		// }
 
-// findExpiredLeases loops leases in the leaseMap until reaching expired limit
-// and returns the expired leases that needed to be revoked.
-Lease[] findExpiredLeases(int limit)
-{
-	Lease[] leases;
+		// auto demotec = this.demotec;
 
-	while (1)
-	{
-		Tuple!(Lease, bool, bool) result = this.expireExists();
-		Lease l = result[0];
-		bool ok = result[1];
-		bool next = result[2];
-		if (!ok && !next)
+		auto l = (id in this.leaseMap);
+		if (l == null)
 		{
-			break;
-		}
-		if (!ok)
-		{
-			continue;
-		}
-		if (next)
-		{
-			continue;
+			return -1; /* , ErrLeaseNotFound */
 		}
 
 		if (l.expired())
 		{
-			leases ~= l;
+			this._mutex.unlock();
+			// unlock = func() {}
+			///@gxc
+			// select
+			// {
+			// 	// A expired lease might be pending for revoking or going through
+			// 	// quorum to be revoked. To be accurate, renew request must wait for the
+			// 	// deletion to complete.
+			// 	case  <  - l.revokec : return  - 1, ErrLeaseNotFound // The expired lease might fail to be revoked if the primary changes.
+			// 	// The caller will retry on ErrNotPrimary.
+			// 	case  <  - demotec
+			// 		: return  - 1, ErrNotPrimarycase <  - this.stopC : return  - 1, ErrNotPrimary
+			// }
+			return -1;
+		}
 
-			// reach expired limit
-			if ((leases.length) == limit)
+		// Clear remaining TTL when we renew if it is set
+		// By applying a RAFT entry only when the remainingTTL is already set, we limit the number
+		// of RAFT entries written per lease to a max of 2 per checkpoint interval.
+		if (this.cp != null && l.remainingTTL > 0)
+		{
+			LeaseCheckpoint[] cps;
+			LeaseCheckpoint ckp = new LeaseCheckpoint();
+			ckp.ID = int64(l.ID);
+			ckp.remainingTTL = 0;
+
+			cps ~= ckp;
+			LeaseCheckpointRequest req = new LeaseCheckpointRequest();
+			req.checkpoints ~= ckp;
+			this.cp( /* context.Background(),  */ req);
+		}
+
+		l.refresh(0);
+		LeaseWithTime item = {id:
+		l.ID, time : l.expiry};
+		this.leaseHeap.Push(item);
+
+		// leaseRenewed.Inc();
+		return l.ttl /* , null */ ;
+	}
+
+	Lease Lookup(LeaseID id)
+	{
+		this._mutex.lock();
+		scope (exit)
+			this._mutex.unlock();
+		auto l = (id in this.leaseMap);
+		return *l;
+	}
+
+	Lease[] unsafeLeases()
+	{
+		Lease[] leases;
+		foreach (LeaseID k, Lease v; this.leaseMap)
+		{
+			leases ~= v;
+		}
+		return leases;
+	}
+
+	Lease[] Leases()
+	{
+		this._mutex.lock();
+		auto ls = this.unsafeLeases();
+		this._mutex.unlock();
+		// sort.Sort(leasesByExpiry(ls));
+		return ls;
+	}
+
+	void Promote(long extend)
+	{
+		_mutex.lock();
+		scope (exit)
+			_mutex.unlock();
+
+		_isPrimary = true;
+		// this.demotec = make(chan struct
+		// 	{
+		// });
+
+		// refresh the expiries of all leases.
+		foreach (LeaseID k, Lease l; this.leaseMap)
+		{
+			l.refresh(extend);
+			LeaseWithTime item = {id:
+			l.ID, time : l.expiry};
+			this.leaseHeap.Push(item);
+		}
+
+		if ((this.leaseMap.length) < leaseRevokeRate)
+		{
+			// no possibility of lease pile-up
+			return;
+		}
+
+		// adjust expiries in case of overlap
+		auto leases = this.unsafeLeases();
+		// sort.Sort(leasesByExpiry(leases));
+
+		auto baseWindow = leases[0].Remaining();
+		auto nextWindow = baseWindow + 1 /* time.Second */ ;
+		auto expires = 0;
+		// have fewer expires than the total revoke rate so piled up leases
+		// don't consume the entire revoke limit
+		auto targetExpiresPerSecond = (3 * leaseRevokeRate) / 4;
+		foreach (l; leases)
+		{
+			auto remaining = l.Remaining();
+			if (remaining > nextWindow)
 			{
-				break;
+				baseWindow = remaining;
+				nextWindow = baseWindow + 1 /* time.Second */ ;
+				expires = 1;
+				continue;
+			}
+			expires++;
+			if (expires <= targetExpiresPerSecond)
+			{
+				continue;
+			}
+			auto rateDelay = float64(1) * (float64(expires) / float64(targetExpiresPerSecond));
+			// If leases are extended by n seconds, leases n seconds ahead of the
+			// base window should be extended by only one second.
+			rateDelay -= float64(remaining - baseWindow);
+			auto delay = (rateDelay);
+			nextWindow = baseWindow + delay;
+			l.refresh(delay + extend);
+			LeaseWithTime item = {id:
+			l.ID, time : l.expiry};
+			this.leaseHeap.Push(item);
+			this.scheduleCheckpointIfNeeded(l);
+		}
+	}
+
+	void Demote()
+	{
+		_mutex.lock();
+		scope (exit)
+			_mutex.unlock();
+
+		// set the expiries of all leases to forever
+		foreach (LeaseID k, Lease l; this.leaseMap)
+		{
+			l.forever();
+		}
+
+		this.clearScheduledLeasesCheckpoints();
+
+		_isPrimary = false;
+		// if (this.demotec != null)
+		// {
+		// 	close(this.demotec);
+		// 	this.demotec = null;
+		// }
+	}
+
+	// Attach attaches items to the lease with given ID. When the lease
+	// expires, the attached items will be automatically removed.
+	// If the given lease does not exist, an error will be returned.
+	string Attach(LeaseID id, LeaseItem[] items)
+	{
+		_mutex.lock();
+		scope (exit)
+			_mutex.unlock();
+
+		auto l = (id in this.leaseMap);
+		if (l == null)
+		{
+			return ErrLeaseNotFound;
+		}
+
+		l._mutex.writer().lock();
+		foreach (it; items)
+		{
+			l.itemSet.add(it.Key);
+			this.itemMap[it] = id;
+		}
+		l._mutex.writer().unlock();
+		return null;
+	}
+
+	LeaseID GetLease(LeaseItem item)
+	{
+		this._mutex.lock();
+		auto id = this.itemMap[item];
+		this._mutex.unlock();
+		return id;
+	}
+
+	// Detach detaches items from the lease with given ID.
+	// If the given lease does not exist, an error will be returned.
+	string Detach(LeaseID id, LeaseItem[] items)
+	{
+		_mutex.lock();
+		scope (exit)
+			_mutex.unlock();
+
+		auto l = (id in this.leaseMap);
+		if (l == null)
+		{
+			return ErrLeaseNotFound;
+		}
+
+		l._mutex.writer().lock();
+		foreach (it; items)
+		{
+			// delete(l.itemSet, it);
+			l.itemSet.remove(it.Key);
+			// delete(this.itemMap, it);
+			this.itemMap.remove(it);
+		}
+		l._mutex.writer().unlock();
+		return null;
+	}
+
+	void Recover( /* backend.Backend b, */ RangeDeleter rd)
+	{
+		_mutex.lock();
+		scope (exit)
+			_mutex.unlock();
+
+		// this.b = b;
+		this.rd = rd;
+		this.leaseMap.clear;
+		this.itemMap.clear;
+		this.initAndRecover();
+	}
+
+	//  ExpiredLeasesC() <-chan []*Lease {
+	// 	return this.expiredC;
+	// }
+
+	//  void Stop() {
+	// 	close(this.stopC)
+	// 	<-this.doneC
+	// }
+
+	void runLoop()
+	{
+		// if(this.leaseHeap.length() > 0)
+		// {
+		// 	auto item = this.leaseHeap.get!LeaseWithTime(0);
+		// 	logWarning("begin lessor check... : ",item);
+		// }
+		
+		this.revokeExpiredLeases();
+		this.checkpointScheduledLeases();
+	}
+
+	// revokeExpiredLeases finds all leases past their expiry and sends them to epxired channel for
+	// to be revoked.
+	void revokeExpiredLeases()
+	{
+		Lease[] ls;
+
+		// rate limit
+		auto revokeLimit = leaseRevokeRate / 2;
+
+		this._mutex.lock();
+		if (this.isPrimary())
+		{
+			ls = this.findExpiredLeases(revokeLimit);
+		}
+		this._mutex.unlock();
+
+		if ((ls.length) != 0)
+		{
+			new Thread(() {
+				logWarning("TO DO Hanle expired Leases's len : ", ls.length);
+				foreach (l; ls)
+				{
+					logWarning("TO DO Hanle expired Lease ID : ", l.ID);
+					RpcRequest rreq;
+					rreq.CMD = RpcReqCommand.LeaseRevokeRequest;
+					rreq.LeaseID = l.ID;
+					NetonRpcServer.instance().Propose(rreq);
+				}
+			}).start();
+		}
+	}
+
+	// checkpointScheduledLeases finds all scheduled lease checkpoints that are due and
+	// submits them to the checkpointer to persist them to the consensus log.
+	void checkpointScheduledLeases()
+	{
+		LeaseCheckpoint[] cps;
+
+		// rate limit
+		for (int i = 0; i < leaseCheckpointRate / 2; i++)
+		{
+			_mutex.lock();
+			if (this.isPrimary())
+			{
+				cps = this.findDueScheduledCheckpoints(maxLeaseCheckpointBatchSize);
+			}
+			this._mutex.unlock();
+
+			if ((cps.length) != 0)
+			{
+				LeaseCheckpointRequest req = new LeaseCheckpointRequest();
+				req.checkpoints = cps;
+				if (this.cp != null)
+					this.cp(req);
+			}
+			if ((cps.length) < maxLeaseCheckpointBatchSize)
+			{
+				return;
 			}
 		}
 	}
 
-	return leases;
-}
-
-void scheduleCheckpointIfNeeded(Lease lease)
-{
-	if (this.cp is null)
+	void clearScheduledLeasesCheckpoints()
 	{
-		return;
+		this.leaseCheckpointHeap.clear();
 	}
 
-	if (lease.RemainingTTL() > int64(this.checkpointInterval /* .Seconds() */ ))
+	// expireExists returns true if expiry items exist.
+	// It pops only when expiry item exists.
+	// "next" is true, to indicate that it may exist in next attempt.
+	Tuple!(Lease, bool, bool) expireExists()
 	{
-		// if (this.lg != null) {
-		// 	this.lg.Debug("Scheduling lease checkpoint",
-		// 		zap.Int64("leaseID", int64(lease.ID)),
-		// 		zap.Duration("intervalSeconds", this.checkpointInterval),
-		// 	);
-		// }
-		LeaseWithTime item = {
-		id:
-			lease.ID, time : Instant.now().getEpochSecond() + (this.checkpointInterval) /* .UnixNano() */
+		Tuple!(Lease, bool, bool) result;
+		if (this.leaseHeap.length() == 0)
+		{
+			result[0] = null;
+			result[1] = false;
+			result[2] = false;
+			return result;
+		}
 
-		
-		};
-		this.leaseCheckpointHeap.Push(item);
+		auto item = this.leaseHeap.get!LeaseWithTime(0);
+		auto exsit = (item.id in this.leaseMap);
+		if(exsit == null)
+			return result;
+		result[0] = *exsit;
+		if (result[0] is null)
+		{
+			 
+			// lease has expired or been revoked
+			// no need to revoke (nothing is expiry)
+			this.leaseHeap.Pop!LeaseWithTime(); // O(log N)
+			result[1] = false;
+			result[2] = true;
+			return result;
+		}
+
+		if (Instant.now().getEpochSecond() < item.time) /* expiration time */
+		{
+			// Candidate expirations are caught up, reinsert this item
+			// and no need to revoke (nothing is expiry)
+			result[1] = false;
+			result[2] = false;
+			return result;
+		}
+		// if the lease is actually expired, add to the removal list. If it is not expired, we can ignore it because another entry will have been inserted into the heap
+
+		this.leaseHeap.Pop!LeaseWithTime(); // O(log N)
+		result[1] = true;
+		result[2] = false;
+		return result;
 	}
-}
 
-LeaseCheckpoint[] findDueScheduledCheckpoints(int checkpointLimit)
-{
-	if (this.cp is null)
+	// findExpiredLeases loops leases in the leaseMap until reaching expired limit
+	// and returns the expired leases that needed to be revoked.
+	Lease[] findExpiredLeases(int limit)
 	{
-		return null;
+		Lease[] leases;
+
+		while (1)
+		{
+			Tuple!(Lease, bool, bool) result = this.expireExists();
+			Lease l = result[0];
+			bool ok = result[1];
+			bool next = result[2];
+			if (!ok && !next)
+			{
+				break;
+			}
+			if (!ok)
+			{
+				continue;
+			}
+			if (next)
+			{
+				continue;
+			}
+
+			if ((l !is null) && l.expired())
+			{
+				leases ~= l;
+
+				// reach expired limit
+				if ((leases.length) == limit)
+				{
+					break;
+				}
+			}
+		}
+
+		return leases;
 	}
 
-	auto now = Instant.now().getEpochSecond();
-	LeaseCheckpoint[] cps;
-	while (this.leaseCheckpointHeap.length() > 0 && (cps.length) < checkpointLimit)
+	void scheduleCheckpointIfNeeded(Lease lease)
 	{
-		auto lt = this.leaseCheckpointHeap.get!LeaseWithTime(0);
-		if (lt.time > now /* .UnixNano() */ )
+		if (this.cp is null)
 		{
-			return cps;
+			return;
 		}
-		this.leaseCheckpointHeap.Pop!LeaseWithTime();
-		Lease l = this.leaseMap[lt.id];
-		bool ok;
-		if (l is null)
+
+		if (lease.RemainingTTL() > int64(this.checkpointInterval /* .Seconds() */ ))
 		{
-			continue;
+			// if (this.lg != null) {
+			// 	this.lg.Debug("Scheduling lease checkpoint",
+			// 		zap.Int64("leaseID", int64(lease.ID)),
+			// 		zap.Duration("intervalSeconds", this.checkpointInterval),
+			// 	);
+			// }
+			LeaseWithTime item = {
+			id:
+				lease.ID, time : Instant.now().getEpochSecond() + (this.checkpointInterval) /* .UnixNano() */
+
+			};
+			this.leaseCheckpointHeap.Push(item);
 		}
-		if (!(now < (l.expiry)))
-		{
-			continue;
-		}
-		auto remainingTTL = int64((l.expiry - (now) /* .Seconds() */ ));
-		if (remainingTTL >= l.ttl)
-		{
-			continue;
-		}
-		// if (this.lg != null)
-		{
-			logDebug("Checkpointing lease --", "leaseID : ", lt.id,
-					"remainingTTL : ", remainingTTL);
-		}
-		LeaseCheckpoint item = new LeaseCheckpoint();
-		item.ID = int64(lt.id);
-		item.remainingTTL = remainingTTL;
-		cps ~= item;
 	}
-	return cps;
-}
 
-void init(Lease l)
-{
-	this.leaseMap[l.ID] = l;
-}
+	LeaseCheckpoint[] findDueScheduledCheckpoints(int checkpointLimit)
+	{
+		if (this.cp is null)
+		{
+			return null;
+		}
 
-void initAndRecover()
-{
-	///@gxc
-	implementationMissing();
-	// 	auto tx = this.b.BatchTx();
-	// 	tx.Lock();
+		auto now = Instant.now().getEpochSecond();
+		LeaseCheckpoint[] cps;
+		while (this.leaseCheckpointHeap.length() > 0 && (cps.length) < checkpointLimit)
+		{
+			auto lt = this.leaseCheckpointHeap.get!LeaseWithTime(0);
+			if (lt.time > now /* .UnixNano() */ )
+			{
+				return cps;
+			}
+			this.leaseCheckpointHeap.Pop!LeaseWithTime();
+			auto l = (lt.id in this.leaseMap);
+			bool ok;
+			if (l == null)
+			{
+				continue;
+			}
+			if (!(now < (l.expiry)))
+			{
+				continue;
+			}
+			auto remainingTTL = int64((l.expiry - (now) /* .Seconds() */ ));
+			if (remainingTTL >= l.ttl)
+			{
+				continue;
+			}
+			// if (this.lg != null)
+			{
+				logDebug("Checkpointing lease --", "leaseID : ", lt.id,
+						"remainingTTL : ", remainingTTL);
+			}
+			LeaseCheckpoint item = new LeaseCheckpoint();
+			item.ID = int64(lt.id);
+			item.remainingTTL = remainingTTL;
+			cps ~= item;
+		}
+		return cps;
+	}
 
-	// 	tx.UnsafeCreateBucket(leaseBucketName);
-	// 	_, vs :  = tx.UnsafeRange(leaseBucketName, int64ToBytes(0), int64ToBytes(math.MaxInt64), 0);
-	// 	// TODO: copy vs and do decoding outside tx lock if lock contention becomes an issue.
-	// 	for (int i = 0; i < vs.length; i++)
-	// 	{
-	// 		leasepb.Lease lpb;
-	// 		auto err = lpb.Unmarshal(vs[i]);
-	// 		if (err != null)
-	// 		{
-	// 			tx.Unlock();
-	// 			panic("failed to unmarshal lease proto item");
-	// 		}
-	// 		auto ID = LeaseID(lpb.ID);
-	// 		if (lpb.TTL < this.minLeaseTTL)
-	// 		{
-	// 			lpb.TTL = this.minLeaseTTL;
-	// 		}
-	// 		this.leaseMap[ID] = Lease
-	// 		{
-	// 		ID:
-	// 			ID, ttl : lpb.TTL, // itemSet will be filled in when recover key-value pairs
-	// 				// set expiry to forever, refresh when promoted
-	// 		itemSet : make(map[LeaseItem]struct
-	// 					{
-	// 				}
-	// ), expiry : forever, revokec : make(chan struct
-	// 				{
-	// 			}),
-	// 		};
-	// 	}
-	// this.leaseHeap.Init();
-	// this.leaseCheckpointHeap.Init();
-	// tx.Unlock();
+	void init(Lease l)
+	{
+		logDebug(" -------****------> init add lease : ", l.ID);
+		this.leaseMap[l.ID] = l;
+	}
 
-	// this.b.ForceCommit();
-}
+	void initAndRecover()
+	{
+		///@gxc
+		implementationMissing();
+		// 	auto tx = this.b.BatchTx();
+		// 	tx.Lock();
+
+		// 	tx.UnsafeCreateBucket(leaseBucketName);
+		// 	_, vs :  = tx.UnsafeRange(leaseBucketName, int64ToBytes(0), int64ToBytes(math.MaxInt64), 0);
+		// 	// TODO: copy vs and do decoding outside tx lock if lock contention becomes an issue.
+		// 	for (int i = 0; i < vs.length; i++)
+		// 	{
+		// 		leasepb.Lease lpb;
+		// 		auto err = lpb.Unmarshal(vs[i]);
+		// 		if (err != null)
+		// 		{
+		// 			tx.Unlock();
+		// 			panic("failed to unmarshal lease proto item");
+		// 		}
+		// 		auto ID = LeaseID(lpb.ID);
+		// 		if (lpb.TTL < this.minLeaseTTL)
+		// 		{
+		// 			lpb.TTL = this.minLeaseTTL;
+		// 		}
+		// 		this.leaseMap[ID] = Lease
+		// 		{
+		// 		ID:
+		// 			ID, ttl : lpb.TTL, // itemSet will be filled in when recover key-value pairs
+		// 				// set expiry to forever, refresh when promoted
+		// 		itemSet : make(map[LeaseItem]struct
+		// 					{
+		// 				}
+		// ), expiry : forever, revokec : make(chan struct
+		// 				{
+		// 			}),
+		// 		};
+		// 	}
+		// this.leaseHeap.Init();
+		// this.leaseCheckpointHeap.Init();
+		// tx.Unlock();
+
+		// this.b.ForceCommit();
+	}
 
 }
 
@@ -913,7 +929,7 @@ Lessor newLessor(LessorConfig cfg)
 	// 	lg:       lg,
 	// }
 	auto l = new Lessor(cfg.MinLeaseTTL, checkpointInterval);
-	l.initAndRecover(); // go l.runLoop()
+	// l.initAndRecover(); // go l.runLoop()
 
 	return l;
 }
@@ -951,6 +967,13 @@ class Lease
 	ReadWriteMutex _mutex;
 	HashSet!string itemSet;
 	// revokec chan struct{}
+
+	this()
+	{
+		itemSet = new HashSet!string();
+		expiryMu = new Mutex();
+		_mutex = new ReadWriteMutex();
+	}
 
 	bool expired()
 	{
@@ -998,8 +1021,7 @@ class Lease
 	// refresh refreshes the expiry of the lease.
 	void refresh(long extend)
 	{
-		auto newExpiry = Instant.now().getEpochSecond() + (extend + /* time.Duration */ (
-					this.RemainingTTL()) * 1);
+		auto newExpiry = Instant.now().getEpochSecond() + (extend + (this.RemainingTTL()) * 1);
 		this.expiryMu.lock();
 		scope (exit)
 			this.expiryMu.unlock();

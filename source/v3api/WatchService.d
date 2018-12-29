@@ -9,6 +9,7 @@ import server.NetonRpcServer;
 import util.Future;
 import v3api.Command;
 import std.stdio;
+import hunt.util.serialize;
 
 class WatchService : WatchBase
 {
@@ -18,7 +19,7 @@ class WatchService : WatchBase
         WatchRequest watchReq;
         while (rw.read(watchReq))
         {
-            logDebug("watch -----> : ", watchReq.requestUnionCase());
+            logDebug("watch -----> : ", watchReq.requestUnionCase(), " ID : ",watchReq._createRequest.watchId);
             if (watchReq.requestUnionCase() == WatchRequest.RequestUnionCase.createRequest)
             {
                 auto f = new Future!(ServerReaderWriter!(WatchRequest, WatchResponse), WatchResponse)(rw);
@@ -31,7 +32,7 @@ class WatchService : WatchBase
             }
 
         }
-
+        logWarning("watch service end : ",this.toHash());
         return Status.OK;
     }
 

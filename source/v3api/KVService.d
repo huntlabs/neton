@@ -38,6 +38,7 @@ class KVService : KVBase
         rreq.CMD = RpcReqCommand.PutRequest;
         rreq.Key = cast(string)(req.key);
         rreq.Value = cast(string)(req.value);
+        rreq.LeaseID = req.lease;
         rreq.Hash = f.toHash();
         NetonRpcServer.instance().Propose(rreq, f);
         logDebug("waiting ..... : ", rreq);

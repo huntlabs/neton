@@ -7,6 +7,7 @@ import std.json;
 
 const string SERVICE_PREFIX = "/service/";
 const string LEASE_PREFIX = "/lease/";
+const string LEASE_GEN_ID_PREFIX = "/lease/ID";
 
 // if the key is "/foo/bar", it will produces result with path "/",
 // "/foo" and "/foo/bar"

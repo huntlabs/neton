@@ -474,7 +474,7 @@ class NetonServer : MessageReceiver
 
 		Config conf = new Config();
 
-		Store.instance.Init(_ID);
+		Store.instance.Init(_ID , null);
 
 		conf._ID = _ID;
 		conf._ElectionTick = 10;

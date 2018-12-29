@@ -55,6 +55,7 @@ int main(string[] argv)
 	server.listen(host , port);
 	server.register( new KVService());
 	server.register( new WatchService());
+	server.register( new LeaseService());
 	server.start();
 
 	thread_joinAll();

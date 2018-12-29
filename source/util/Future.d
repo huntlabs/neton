@@ -22,7 +22,7 @@ class Future(Req , Res)
     {
         _condition.mutex().lock();
         trace("condition waiting ...");
-        _condition.wait();
+        _condition.wait(5.seconds);
         trace("condition waiting done ...");
         _condition.mutex().unlock();
         return _out;

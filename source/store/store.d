@@ -11,6 +11,11 @@ import std.uni;
 import std.algorithm.searching;
 import store.util;
 
+import etcdserverpb.rpc;
+import v3api.Command;
+
+
+import lease;
 
 struct TTLOptionSet{
 	uint ExpireTime ;
@@ -49,9 +54,9 @@ class Store : StoreInter
 {
     __gshared Store _gstore;
 
-    void Init(ulong ID)
+    void Init(ulong ID, Lessor l)
     {
-        _kvStore = new RocksdbStore(ID);
+        _kvStore = new RocksdbStore(ID,l);
     }
 
     this()
@@ -219,6 +224,55 @@ class Store : StoreInter
  
         return e;
     }
+
+    /// rpc 
+
+    PutResponse put(RpcRequest req)
+    {
+        auto respon = _kvStore.put(req);
+
+        if(respon !is null)
+        {
+            _currentIndex++;
+            auto e  = new Event(EventAction.Set, getSafeKey(req.Key), _currentIndex);
+            e.setNetonIndex( _currentIndex);
+
+            _watcherHub.notify(e);
+        }
+        return respon;
+    }
+
+    long generateLeaseID()
+    {
+        return _kvStore.generateLeaseID();
+    }
+
+	Lease grantLease(long leaseid, long ttl)
+    {
+        return _kvStore.grantLease(leaseid,ttl);
+    }
+
+	bool revokeLease(long leaseid)
+    {
+        return _kvStore.revokeLease(leaseid);
+    }
+
+    LeaseTimeToLiveResponse leaseTimeToLive(long leaseid)
+    {
+        return _kvStore.leaseTimeToLive(leaseid);
+    }
+
+	LeaseLeasesResponse leaseLeases()
+    {
+        return _kvStore.leaseLeases();
+    }
+
+    LeaseKeepAliveResponse renewLease(RpcRequest req)
+    {
+        return _kvStore.renewLease(req);
+    }
+    
+
 
     static Store instance()
 	{

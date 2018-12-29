@@ -3,41 +3,49 @@ module store.event;
 import store.NodeExtern;
 import std.experimental.allocator;
 import std.json;
+import hunt.logging;
 
-enum ServiceState{
-    Passing   = "passing",
-    Warning   = "warning",
-    Critical  = "critical",
+enum ServiceState
+{
+    Passing = "passing",
+    Warning = "warning",
+    Critical = "critical",
     Maintenance = "maintenance",
 }
 
-enum EventAction {
-	Get              = "get",
-	Create           = "create",
-	Set              = "set",
-	Update           = "update",
-	Delete           = "delete",
-    Register         = "register",
-    Deregister       = "deregister",
-	CompareAndSwap   = "compareAndSwap",
-	CompareAndDelete = "compareAndDelete",
-	Expire           = "expire",
+enum EventAction
+{
+    Get = "get",
+    Create = "create",
+    Set = "set",
+    Update = "update",
+    Delete = "delete",
+    Register = "register",
+    Deregister = "deregister",
+    CompareAndSwap = "compareAndSwap",
+    CompareAndDelete = "compareAndDelete",
+    Expire = "expire",
 }
 
-class Event{
+class Event
+{
 
     this()
     {
 
     }
-    this(EventAction action, string key, ulong modifiedIndex,bool recursive = false) {
 
-        _node = new NodeExtern(key,modifiedIndex,recursive);
+    this(EventAction action, string key, ulong modifiedIndex, bool recursive = false)
+    {
+
+        // logWarning("begin load value :",key );
+        _node = new NodeExtern(key, modifiedIndex, recursive);
+        // logWarning("end load value :",key );
         _action = action;
         _refresh = false;
     }
 
-    void opAssign(S)(auto ref S e) if(is(S == Unqual!(typeof(this))))
+    void opAssign(S)(auto ref S e) if (is(S == Unqual!(typeof(this))))
     {
         _action = e._action;
         _netonIndex = e._netonIndex;
@@ -47,19 +55,22 @@ class Event{
         _errorMsg = e._errorMsg;
     }
 
-    bool IsCreated()  {
-        if (this._action == EventAction.Create) {
+    bool IsCreated()
+    {
+        if (this._action == EventAction.Create)
+        {
             return true;
         }
         return _action == EventAction.Set && _prevNode is null;
     }
 
-    @property ulong Index()  {
-        return /*_node.modifiedIndex*/_netonIndex;
+    @property ulong Index()
+    {
+        return  /*_node.modifiedIndex*/ _netonIndex;
     }
 
-
-    @property EventAction action()  {
+    @property EventAction action()
+    {
         return _action;
     }
 
@@ -83,7 +94,8 @@ class Event{
         return _node.value;
     }
 
-     @property ulong netonIndex()  {
+    @property ulong netonIndex()
+    {
         return _netonIndex;
     }
 
@@ -92,10 +104,11 @@ class Event{
         _netonIndex = idx;
     }
 
-    Event Clone() {
+    Event Clone()
+    {
         auto e = theAllocator.make!Event();
         e = this;
-        return  e;
+        return e;
     }
 
     @property bool dir()
@@ -108,7 +121,8 @@ class Event{
         return _refresh;
     }
 
-    void  SetRefresh() {
+    void SetRefresh()
+    {
         _refresh = true;
     }
 
@@ -117,27 +131,39 @@ class Event{
         return _errorMsg.length == 0;
     }
 
-     @property string error()
+    @property string error()
     {
         return _errorMsg;
     }
 
-    void  setErrorMsg(string msg) {
+    void setErrorMsg(string msg)
+    {
         _errorMsg = msg;
     }
 
     string rpcValue()
     {
         if (this.error.length > 0)
-			return this.error;
-		return this.nodeValue().toString;
+            return this.error;
+        JSONValue nodeValue = this.nodeValue();
+        if (nodeValue.type == JSONType.OBJECT)
+        {
+            if ("value" in nodeValue)
+            {
+                if (nodeValue["value"].type == JSONType.STRING)
+                    return nodeValue["value"].str;
+                else
+                    return nodeValue["value"].toString;
+            }
+        }
+        return nodeValue.toString;
     }
 
-    private :
-        	EventAction _action;
-            NodeExtern  _node;
-            NodeExtern  _prevNode;
-            ulong       _netonIndex;      
-            bool        _refresh;
-            string      _errorMsg;
+private:
+    EventAction _action;
+    NodeExtern _node;
+    NodeExtern _prevNode;
+    ulong _netonIndex;
+    bool _refresh;
+    string _errorMsg;
 }
