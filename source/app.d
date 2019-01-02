@@ -10,6 +10,7 @@ import std.stdio;
 import server.NetonConfig;
 import v3api;
 import grpc;
+import hunt.datetime.Helper;
 
 bool initConfig(string[] args, out bool join)
 {
@@ -38,8 +39,10 @@ bool initConfig(string[] args, out bool join)
 	return true;
 }
 
+
 int main(string[] argv)
 {
+	DateTimeHelper.startClock();
 	bool join;
 	if(!initConfig(argv,join))
 	{

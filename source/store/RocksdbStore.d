@@ -544,6 +544,20 @@ class RocksdbStore
 		return null;
 	}
 
+	DeleteRangeResponse deleteRange(RpcRequest req)
+    {
+		DeleteRangeResponse respon = new DeleteRangeResponse();
+		auto nodePath = getSafeKey(req.Key);
+		if(Exsit(nodePath))
+		{
+			Remove(nodePath,true);
+			respon.deleted = 1;
+		}
+		else
+			respon.deleted = 0;
+		return respon;
+    }
+
 protected:
 	void SetValue(string key, string value)
 	{

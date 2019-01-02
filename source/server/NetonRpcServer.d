@@ -203,16 +203,9 @@ class NetonRpcServer : MessageReceiver
 						break;
 					case RpcReqCommand.DeleteRangeRequest:
 						{
-							resultEvent = Store.instance.Delete(command.Key, false);
+							auto respon = Store.instance.deleteRange(command);
 							if (h != null)
 							{
-								DeleteRangeResponse respon = new DeleteRangeResponse();
-								auto kv = new KeyValue();
-								kv.key = cast(ubyte[])(command.Key);
-								kv.value = cast(ubyte[])(resultEvent.rpcValue());
-								respon.prevKvs ~= kv;
-								if (resultEvent.isOk)
-									respon.deleted = respon.prevKvs.length;
 								auto handler = cast(Future!(DeleteRangeRequest,
 										DeleteRangeResponse))(*h);
 								if (handler !is null)
@@ -435,7 +428,7 @@ class NetonRpcServer : MessageReceiver
 		if (_appliedIndex - _snapshotIndex <= defaultSnapCount)
 			return;
 
-		logInfo("start snapshot [applied index: %d | last snapshot index: %d]",
+		logInfof("start snapshot [applied index: %d | last snapshot index: %d]",
 				_appliedIndex, _snapshotIndex);
 
 		auto data = loadSnapshot().Data;
@@ -849,25 +842,25 @@ class NetonRpcServer : MessageReceiver
 					if (h != null)
 					{
 						auto handler = cast(Future!(ServerReaderWriter!(WatchRequest,
-								WatchResponse), WatchResponse))(*h);
+								WatchResponse), WatchInfo))(*h);
 						if (handler is null)
 						{
 							logWarning("--- watch handler convert fail ---");
 							continue;
 						}
 						WatchResponse respon = new WatchResponse();
-						auto header = new ResponseHeader();
-						header.clusterId = 1;
-						header.memberId = 1;
-						header.raftTerm = 1;
-						header.revision = 1 ;
-						respon.header = header;
-						respon.created = true;
-						respon.watchId = 100;
+						WatchInfo watchInfo = handler.ResData();
+						respon.header = new ResponseHeader();
+						respon.header = watchInfo.header;
+						respon.created = watchInfo.created;
+						respon.watchId = watchInfo.watchId;
 
-						handler.data().write(respon);
-
-						respon.created = false;
+						if(handler.ResData().created)
+						{
+							handler.data().write(respon);
+							handler.ResData().created = false;
+						}
+						handler.ResData().header.revision +=1;
 
 						auto es = w.events();
 						foreach (e; es)
