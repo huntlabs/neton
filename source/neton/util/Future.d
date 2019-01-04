@@ -41,12 +41,12 @@ class Future(Req , Res)
         return _in;
     }
 
-    ref Res ResData() @property
+    ref Res ExtraData() @property
     {
         return _out;
     }
 
-    void setResData(Res res)
+    void setExtraData(Res res)
     {
         _out = res;
     }

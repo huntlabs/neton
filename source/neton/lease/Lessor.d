@@ -12,7 +12,7 @@ import hunt.logging;
 import hunt.lang.exception;
 import hunt.container;
 
-import neton.etcdserverpb.rpc;
+import etcdserverpb.rpc;
 import neton.server.NetonRpcServer;
 import neton.v3api.Command;
 

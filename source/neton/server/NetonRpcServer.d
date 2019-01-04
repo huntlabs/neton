@@ -2,7 +2,11 @@ module neton.server.NetonRpcServer;
 
 import hunt.raft;
 import hunt.net;
-import neton.network;
+import neton.network.NetServer;
+import neton.network.NodeClient;
+import neton.network.ServerHandler;
+import neton.network.Interface;
+
 import core.time;
 import core.thread;
 import core.sync.mutex;
@@ -16,7 +20,6 @@ import hunt.event.timer;
 import hunt.event.timer.common;
 import neton.network.NodeClient;
 import neton.server.NetonConfig;
-import neton.server.health;
 
 import std.conv;
 import neton.wal.wal;
@@ -32,9 +35,9 @@ import neton.store.util;
 import std.algorithm.mutation;
 
 import neton.v3api;
-import neton.etcdserverpb.kv;
-import neton.etcdserverpb.rpc;
-import neton.etcdserverpb.rpcrpc;
+import etcdserverpb.kv;
+import etcdserverpb.rpc;
+import etcdserverpb.rpcrpc;
 import grpc;
 
 import neton.util.Future;
@@ -202,7 +205,8 @@ class NetonRpcServer : MessageReceiver
 					case RpcReqCommand.WatchRequest:
 						{
 							auto w = Store.instance.Watch(command.Key, false, true, 0);
-							w.setHttpHash(command.Hash);
+							w.setHash(command.Hash);
+							w.setWatchId(command.Value.to!long);
 							_watchers ~= w;
 						}
 						break;
@@ -358,14 +362,14 @@ class NetonRpcServer : MessageReceiver
 						break;
 					case RpcReqCommand.WatchCancelRequest:
 						{
-							removeWatcher(command.Hash);
+							removeWatcher(command.Value.to!long);
 							if (h != null)
 							{
 								auto handler = cast(Future!(ServerReaderWriter!(WatchRequest, WatchResponse), WatchInfo))(*h);
 								if (handler !is null)
 								{
 									WatchResponse respon = new WatchResponse();
-									WatchInfo watchInfo = handler.ResData();
+									WatchInfo watchInfo = handler.ExtraData();
 									respon.header = watchInfo.header;
 									respon.created = false;
 									respon.canceled = true;
@@ -456,16 +460,6 @@ class NetonRpcServer : MessageReceiver
 	{
 		logDebug("***** RpcRequest.CMD : ", command.CMD, " key : ", command.Key);
 
-		// auto err = _node.Propose(cast(string) serialize(command));
-		// if (err != ErrNil)
-		// {
-		// 	logError("---------", err);
-		// }
-		// else
-		// {
-		// 	//logInfo("--------- request hash ",command.Hash);
-		// 	_request[command.Hash] = h;
-		// }
 		_request[command.Hash] = h;
 		Propose(command);
 	}
@@ -802,9 +796,6 @@ class NetonRpcServer : MessageReceiver
 					auto handler = cast(Future!(RangeRequest, RangeResponse))(*h);
 					if (handler !is null)
 					{
-						logDebug("handler : ", h.toHash());
-						// if(handler.data is null)
-						// 	logDebug("##----###");
 						logDebug("response key: ", cast(string)(handler.data().key));
 						handler.done(respon);
 						_request.remove(command.Hash);
@@ -817,7 +808,8 @@ class NetonRpcServer : MessageReceiver
 				else if (command.CMD == RpcReqCommand.WatchRequest)
 				{
 					auto w = Store.instance.Watch(command.Key, false, true, 0);
-					w.setHttpHash(command.Hash);
+					w.setHash(command.Hash);
+					w.setWatchId(command.Value.to!long);
 					_watchers ~= w;
 				}
 				
@@ -865,26 +857,26 @@ class NetonRpcServer : MessageReceiver
 							continue;
 						}
 						WatchResponse respon = new WatchResponse();
-						WatchInfo watchInfo = handler.ResData();
+						WatchInfo watchInfo = handler.ExtraData();
 						respon.header = watchInfo.header;
 						respon.created = false;
 						respon.watchId = watchInfo.watchId;
 
-						handler.ResData().header.revision +=1;
+						handler.ExtraData().header.revision +=1;
 
 						auto es = w.events();
 						foreach (e; es)
 						{
-							auto event = new neton.etcdserverpb.kv.Event();
+							auto event = new etcdserverpb.kv.Event();
 							auto kv = new KeyValue();
 							kv.key = cast(ubyte[])(e.nodeKey());
 							kv.value = cast(ubyte[])(e.rpcValue());
 							event.kv = kv;
 							event.prevKv = kv;
 							if (e.action() == EventAction.Delete)
-								event.type = neton.etcdserverpb.kv.Event.EventType.DELETE;
+								event.type = etcdserverpb.kv.Event.EventType.DELETE;
 							else
-								event.type = neton.etcdserverpb.kv.Event.EventType.PUT;
+								event.type = etcdserverpb.kv.Event.EventType.PUT;
 							respon.events ~= event;
 							logInfo("--- -> notify event key: ", e.nodeKey(),
 									" value : ", e.rpcValue(), " type :", e.action());
@@ -893,7 +885,7 @@ class NetonRpcServer : MessageReceiver
 						handler.data().write(respon);
 						// _request.remove(w.hash);
 					}
-					// removeWatcher(w.hash);
+					// removeWatcher(w.watchId);
 				}
 			}
 		}
@@ -903,10 +895,10 @@ class NetonRpcServer : MessageReceiver
 	{
 		foreach (w; _watchers)
 		{
-			if (w.hash == hash)
+			if (w.watchId == hash)
 				w.Remove();
 		}
-		auto wl = remove!(a => a.hash == hash)(_watchers);
+		auto wl = remove!(a => a.watchId == hash)(_watchers);
 		move(wl, _watchers);
 		logInfo("---watchers len : ", _watchers.length);
 	}
@@ -950,7 +942,7 @@ private:
 	ulong _snapshotIndex;
 	ulong _appliedIndex;
 
-	Object[ulong] _request;
+	Object[ulong] _request; /// key is hashId
 
 	string _waldir; // path to WAL directory
 	string _snapdir; // path to snapshot directory

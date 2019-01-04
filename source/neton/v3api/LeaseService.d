@@ -1,8 +1,8 @@
 module neton.v3api.LeaseService;
 
-import neton.etcdserverpb.kv;
-import neton.etcdserverpb.rpc;
-import neton.etcdserverpb.rpcrpc;
+import etcdserverpb.kv;
+import etcdserverpb.rpc;
+import etcdserverpb.rpcrpc;
 import grpc;
 import hunt.logging;
 import neton.server.NetonRpcServer;
@@ -15,6 +15,9 @@ class LeaseService : LeaseBase
     override Status LeaseGrant(LeaseGrantRequest req, ref LeaseGrantResponse response)
     {
         auto f = new Future!(LeaseGrantRequest, LeaseGrantResponse)(req);
+
+        if(req.TTL == 0)
+            return new Status(StatusCode.INVALID_ARGUMENT); 
 
         RpcRequest rreq;
         if (req.ID == 0)
@@ -36,6 +39,9 @@ class LeaseService : LeaseBase
     {
         auto f = new Future!(LeaseRevokeRequest, LeaseRevokeResponse)(req);
 
+        if(req.ID == 0)
+            return new Status(StatusCode.INVALID_ARGUMENT); 
+
         RpcRequest rreq;
         rreq.CMD = RpcReqCommand.LeaseRevokeRequest;
         rreq.LeaseID = req.ID;
@@ -55,6 +61,8 @@ class LeaseService : LeaseBase
         while (rw.read(req))
         {
             logDebug("LeaseKeepAlive ----->  ID : ", req.ID);
+            if(req.ID == 0)
+                return new Status(StatusCode.INVALID_ARGUMENT); 
 
             auto f = new Future!(ServerReaderWriter!(LeaseKeepAliveRequest, LeaseKeepAliveResponse), LeaseKeepAliveResponse)(rw);
 
@@ -71,6 +79,9 @@ class LeaseService : LeaseBase
 
     override Status LeaseTimeToLive(LeaseTimeToLiveRequest req, ref LeaseTimeToLiveResponse response)
     {
+        if(req.ID == 0)
+            return new Status(StatusCode.INVALID_ARGUMENT); 
+
         auto f = new Future!(LeaseTimeToLiveRequest, LeaseTimeToLiveResponse)(req);
 
         RpcRequest rreq;

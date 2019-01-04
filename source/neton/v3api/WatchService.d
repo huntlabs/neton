@@ -1,8 +1,8 @@
 module neton.v3api.WatchService;
 
-import neton.etcdserverpb.kv;
-import neton.etcdserverpb.rpc;
-import neton.etcdserverpb.rpcrpc;
+import etcdserverpb.kv;
+import etcdserverpb.rpc;
+import etcdserverpb.rpcrpc;
 import grpc;
 import hunt.logging;
 import neton.server.NetonRpcServer;
@@ -10,6 +10,8 @@ import neton.util.Future;
 import neton.v3api.Command;
 import std.stdio;
 import hunt.util.serialize;
+import core.sync.mutex;
+import std.conv;
 
 struct WatchInfo
 {
@@ -18,10 +20,26 @@ struct WatchInfo
     ResponseHeader header;
 }
 
+__gshared size_t WATCH_ID = 0;
+__gshared Mutex _gmutex;
+
+shared static this()
+{
+    _gmutex = new Mutex();
+}
+
+size_t plusWatchId()
+{
+    synchronized( _gmutex )
+    {
+        ++WATCH_ID;
+    }
+    return WATCH_ID;
+}
+
 class WatchService : WatchBase
 {
     private WatchInfo winfo;
-    private int lastWatchId = 0;
 
     override Status Watch(ServerReaderWriter!(WatchRequest, WatchResponse) rw)
     {
@@ -30,14 +48,14 @@ class WatchService : WatchBase
         while (rw.read(watchReq))
         {
             logDebug("watch -----> : ", watchReq.requestUnionCase(), " ID : ",
-                    watchReq._createRequest.watchId," last watchid : ",this.lastWatchId);
+                    watchReq._createRequest.watchId," last watchid : ",WATCH_ID);
             if (watchReq.requestUnionCase() == WatchRequest.RequestUnionCase.createRequest)
             {
                 auto f = new Future!(ServerReaderWriter!(WatchRequest, WatchResponse), WatchInfo)(
                         rw);
                 WatchResponse respon = new WatchResponse();
                 respon.created = true;
-                respon.watchId = ++this.lastWatchId;
+                respon.watchId = plusWatchId();
                 auto header = new ResponseHeader();
                 header.clusterId = 1;
                 header.memberId = 1;
@@ -50,12 +68,13 @@ class WatchService : WatchBase
                 RpcRequest rreq;
                 rreq.CMD = RpcReqCommand.WatchRequest;
                 rreq.Key = cast(string)(watchReq._createRequest.key);
-                rreq.Hash = f.toHash();
+                rreq.Value = respon.watchId.to!string;
+                rreq.Hash = this.toHash();
                 WatchInfo info;
                 info.created = true;
                 info.watchId = respon.watchId;
                 info.header = header;
-                f.setResData(info);
+                f.setExtraData(info);
                 NetonRpcServer.instance().ReadIndex(rreq, f);
             }
             else if (watchReq.requestUnionCase() == WatchRequest.RequestUnionCase.cancelRequest)
@@ -74,12 +93,13 @@ class WatchService : WatchBase
                 
                 RpcRequest rreq;
                 rreq.CMD = RpcReqCommand.WatchCancelRequest;
-                rreq.Hash = f.toHash();
+                rreq.Value = respon.watchId.to!string;
+                rreq.Hash = this.toHash();
                 WatchInfo info;
                 info.created = false;
                 info.watchId = respon.watchId;
                 info.header = header;
-                f.setResData(info);
+                f.setExtraData(info);
                 NetonRpcServer.instance().Propose(rreq, f);
             }
         }

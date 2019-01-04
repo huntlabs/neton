@@ -11,8 +11,8 @@ import std.uni;
 import std.algorithm.searching;
 import neton.store.util;
 
-import neton.etcdserverpb.rpc;
-import neton.etcdserverpb.kv : KeyValue;
+import etcdserverpb.rpc;
+import etcdserverpb.kv : KeyValue;
 import neton.v3api.Command;
 
 import neton.lease;

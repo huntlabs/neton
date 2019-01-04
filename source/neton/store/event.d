@@ -159,7 +159,7 @@ class Event
         return nodeValue.toString;
     }
 
-    import neton.etcdserverpb.kv;
+    import etcdserverpb.kv;
 
     KeyValue[] getKeyValues()
     {

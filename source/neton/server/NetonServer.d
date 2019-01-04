@@ -146,7 +146,7 @@ class NetonServer : MessageReceiver
 							if ("waitIndex" in param)
 								waitIndex = to!ulong(param["waitIndex"].str);
 							auto w = Store.instance.Watch(command.Key, recursive, false, waitIndex);
-							w.setHttpHash(command.Hash);
+							w.setWatchId(command.Hash);
 							_watchers ~= w;
 							iswatch = true;
 						}
@@ -652,7 +652,7 @@ class NetonServer : MessageReceiver
 					if ("waitIndex" in param)
 						waitIndex = to!ulong(param["waitIndex"].str);
 					auto w = Store.instance.Watch(command.Key, recursive, false, waitIndex);
-					w.setHttpHash(command.Hash);
+					w.setWatchId(command.Hash);
 					_watchers ~= w;
 					iswatch = true;
 				}
@@ -714,8 +714,8 @@ class NetonServer : MessageReceiver
 			{
 				if (w.haveNotify)
 				{
-					logInfo("----- scaned notify key: ", w.key, " hash :", w.hash);
-					auto http = (w.hash in _request);
+					logInfo("----- scaned notify key: ", w.key, " hash :", w.watchId);
+					auto http = (w.watchId in _request);
 					if (http != null)
 					{
 						auto es = w.events();
@@ -727,9 +727,9 @@ class NetonServer : MessageReceiver
 							http.close();
 							break;
 						}
-						_request.remove(w.hash);
+						_request.remove(w.watchId);
 					}
-					removeWatcher(w.hash);
+					removeWatcher(w.watchId);
 				}
 			}
 		}
@@ -747,10 +747,10 @@ class NetonServer : MessageReceiver
 	{
 		foreach (w; _watchers)
 		{
-			if (w.hash == hash)
+			if (w.watchId == hash)
 				w.Remove();
 		}
-		auto wl = remove!(a => a.hash == hash)(_watchers);
+		auto wl = remove!(a => a.watchId == hash)(_watchers);
 		move(wl, _watchers);
 		logInfo("---watchers len : ", _watchers.length);
 	}

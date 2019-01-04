@@ -19,8 +19,8 @@ import rocksdb.options;
 
 import neton.store.util;
 import neton.lease;
-import neton.etcdserverpb.rpc;
-import neton.etcdserverpb.kv;
+import etcdserverpb.rpc;
+import etcdserverpb.kv;
 import neton.v3api.Command;
 
 /*
@@ -147,11 +147,11 @@ class RocksdbStore
 	bool isDir(string key)
 	{
 		auto value = getJsonValue(key);
-		if(value.type != JSON_TYPE.NULL)
+		if (value.type != JSON_TYPE.NULL)
 		{
-			if("dir" in value)
+			if ("dir" in value)
 			{
-				if(value["dir"].str == "true")
+				if (value["dir"].str == "true")
 					return true;
 			}
 		}
@@ -381,6 +381,12 @@ class RocksdbStore
 		auto lease = getJsonValue(LEASE_PREFIX ~ leaseid.to!string);
 		if (lease.type != JSONType.NULL)
 		{
+			if (_lessor !is null)
+			{
+				LeaseItem item = {Key:key};
+				_lessor.Attach(leaseid, [item]);
+			}
+
 			if (!canFind!((JSONValue b, string a) => b["key"].str == a)(lease["items"].array, key))
 			{
 				JSONValue item;
@@ -399,6 +405,12 @@ class RocksdbStore
 		auto lease = getJsonValue(LEASE_PREFIX ~ leaseid.to!string);
 		if (lease.type != JSONType.NULL)
 		{
+			if (_lessor !is null)
+			{
+				LeaseItem item = {Key:key};
+				_lessor.Detach(leaseid, [item]);
+			}
+
 			JSONValue[] oldItems = lease["items"].array;
 			JSONValue[] newItems;
 			foreach (JSONValue item; oldItems)
@@ -456,8 +468,8 @@ class RocksdbStore
 		}
 		else
 		{
-			respon.ID = -1;
-			respon.TTL = 0;
+			respon.ID = leaseid;
+			respon.TTL = -1;
 			respon.grantedTTL = 0;
 		}
 		return respon;
@@ -530,12 +542,12 @@ class RocksdbStore
 				auto ok = set(nodePath, req.Value, error, req.LeaseID);
 				if (ok)
 				{
-					if (_lessor !is null)
-					{
-						LeaseItem item = {Key:
-						nodePath};
-						_lessor.Attach(req.LeaseID, [item]);
-					}
+					// if (_lessor !is null)
+					// {
+					// 	LeaseItem item = {Key:
+					// 	nodePath};
+					// 	_lessor.Attach(req.LeaseID, [item]);
+					// }
 					PutResponse respon = new PutResponse();
 					auto kv = new KeyValue();
 					kv.key = cast(ubyte[])(req.Key);
@@ -562,18 +574,18 @@ class RocksdbStore
 	}
 
 	DeleteRangeResponse deleteRange(RpcRequest req)
-    {
+	{
 		DeleteRangeResponse respon = new DeleteRangeResponse();
 		auto nodePath = getSafeKey(req.Key);
-		if(Exsit(nodePath))
+		if (Exsit(nodePath))
 		{
-			Remove(nodePath,true);
+			Remove(nodePath, true);
 			respon.deleted = 1;
 		}
 		else
 			respon.deleted = 0;
 		return respon;
-    }
+	}
 
 protected:
 	void SetValue(string key, string value)

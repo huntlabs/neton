@@ -85,14 +85,24 @@ class Watcher :  WatcherInter {
         return _key;
     }
 
-    void setHttpHash(size_t hash)
+    void setWatchId(size_t wid)
     {
-        _httpHash = hash;
+        _watchId = wid;
+    }
+
+    @property size_t watchId()
+    {
+        return _watchId;
+    }
+
+    void setHash(size_t hash)
+    {
+        _hash = hash;
     }
 
     @property size_t hash()
     {
-        return _httpHash;
+        return _hash;
     }
 
     // notify function notifies the watcher. If the watcher interests in the given path,
@@ -161,6 +171,7 @@ class Watcher :  WatcherInter {
             RemoveFunc _remove;
             string     _uuid;
             string     _key;
-            size_t     _httpHash;
+            size_t     _watchId;
+            size_t     _hash;
 }
 

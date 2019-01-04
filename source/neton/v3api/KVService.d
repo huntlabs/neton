@@ -1,8 +1,8 @@
 module neton.v3api.KVService;
 
-import neton.etcdserverpb.kv;
-import neton.etcdserverpb.rpc;
-import neton.etcdserverpb.rpcrpc;
+import etcdserverpb.kv;
+import etcdserverpb.rpc;
+import etcdserverpb.rpcrpc;
 import grpc;
 import hunt.logging;
 import neton.server.NetonRpcServer;
@@ -47,8 +47,10 @@ class KVService : KVBase
         logDebug("waiting ..... : ", rreq);
         response = f.get();
         logDebug("waiting done.....");
-
-        return Status.OK;
+        if(response !is null)
+            return Status.OK;
+        else
+            return new Status(StatusCode.INVALID_ARGUMENT);
     }
 
     override Status DeleteRange(DeleteRangeRequest req, ref DeleteRangeResponse response)
@@ -64,7 +66,10 @@ class KVService : KVBase
         response = f.get();
         logDebug("waiting done.....");
 
-        return Status.OK;
+        if(response !is null)
+            return Status.OK;
+        else
+            return new Status(StatusCode.INVALID_ARGUMENT);
     }
 
 }
