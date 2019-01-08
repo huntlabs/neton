@@ -10,7 +10,7 @@ import neton.store.event;
 // import zhang2018.dreactor.time.Timer;
 import hunt.event.timer;
 import hunt.logging;
-import neton.server.NetonServer;
+import neton.server.NetonHttpServer;
 import neton.network.http;
 
 class Health
@@ -169,7 +169,7 @@ void updateServiceState(Health h, ServiceState state)
         Method:
             RequestMethod.METHOD_UPDATESERVICE, Key : h.key, Hash : h.toHash(),
         Params : val.toString};
-            NetonServer.instance().Propose(command);
+            NetonHttpServer.instance().Propose(command);
         }
         catch (Exception e)
         {

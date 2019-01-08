@@ -1,5 +1,5 @@
 ﻿
-import neton.server.NetonServer;
+import neton.server.NetonHttpServer;
 import neton.server.NetonRpcServer;
 import hunt.logging;
 import core.thread;
@@ -34,7 +34,6 @@ bool initConfig(string[] args, out bool join)
 	LogConf conf;
 	conf.fileName = "neton.log" ~ to!string(NetonConfig.instance.selfConf().id);
 	logLoadConf(conf);
-	// load_log_conf("./config/log.conf" , args[0] ~ to!string(NetonConfig.instance.selfConf().id));
 
 	return true;
 }
@@ -42,6 +41,8 @@ bool initConfig(string[] args, out bool join)
 
 int main(string[] argv)
 {
+	import  std.parallelism; 
+	defaultPoolThreads(100);
 	DateTimeHelper.startClock();
 	bool join;
 	if(!initConfig(argv,join))

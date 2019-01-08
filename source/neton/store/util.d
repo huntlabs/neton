@@ -37,6 +37,16 @@ string getSafeKey(string key)
     return result;
 }
 
+string removeDelimiter(string key)
+{
+    key = strip(key);
+    if (endsWith(key, "/"))
+        key = key[0 .. $ - 1];
+    if (startsWith(key, "/"))
+        key = key[1 .. $];
+    return key;
+}
+
 string[] getAllParent(string key)
 {
     string[] result;

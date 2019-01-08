@@ -1,4 +1,4 @@
-module neton.server.NetonServer;
+module neton.server.NetonHttpServer;
 
 import hunt.raft;
 import hunt.net;
@@ -34,9 +34,9 @@ import std.algorithm.mutation;
 enum defaultSnapCount = 10;
 enum snapshotCatchUpEntriesN = 10000;
 
-class NetonServer : MessageReceiver
+class NetonHttpServer : MessageReceiver
 {
-	__gshared NetonServer _gserver;
+	__gshared NetonHttpServer _gserver;
 
 	this()
 	{
@@ -510,7 +510,7 @@ class NetonServer : MessageReceiver
 			_node = new RawNode(conf, peers);
 		}
 
-		_http = new NetServer!(HttpBase, NetonServer)(_ID, this);
+		_http = new NetServer!(HttpBase, NetonHttpServer)(_ID, this);
 
 		_http.listen("0.0.0.0", NetonConfig.instance.selfConf.apiport);
 
@@ -755,10 +755,10 @@ class NetonServer : MessageReceiver
 		logInfo("---watchers len : ", _watchers.length);
 	}
 
-	static NetonServer instance()
+	static NetonHttpServer instance()
 	{
 		if (_gserver is null)
-			_gserver = new NetonServer();
+			_gserver = new NetonHttpServer();
 		return _gserver;
 	}
 
@@ -870,7 +870,7 @@ class NetonServer : MessageReceiver
 	MemoryStorage _storage;
 	ulong _ID;
 	NetServer!(ServerHandler, MessageReceiver) _server;
-	NetServer!(HttpBase, NetonServer) _http;
+	NetServer!(HttpBase, NetonHttpServer) _http;
 
 	NodeClient[ulong] _clients;
 	RawNode _node;

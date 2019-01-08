@@ -39,16 +39,16 @@ size_t plusWatchId()
 
 class WatchService : WatchBase
 {
-    private WatchInfo winfo;
 
     override Status Watch(ServerReaderWriter!(WatchRequest, WatchResponse) rw)
     {
+        logDebug("--------------");
+
         WatchRequest watchReq;
 
         while (rw.read(watchReq))
         {
-            logDebug("watch -----> : ", watchReq.requestUnionCase(), " ID : ",
-                    watchReq._createRequest.watchId," last watchid : ",WATCH_ID);
+            logDebug("watch -----> : ", watchReq.requestUnionCase(), " last watchid : ",WATCH_ID);
             if (watchReq.requestUnionCase() == WatchRequest.RequestUnionCase.createRequest)
             {
                 auto f = new Future!(ServerReaderWriter!(WatchRequest, WatchResponse), WatchInfo)(
@@ -69,7 +69,7 @@ class WatchService : WatchBase
                 rreq.CMD = RpcReqCommand.WatchRequest;
                 rreq.Key = cast(string)(watchReq._createRequest.key);
                 rreq.Value = respon.watchId.to!string;
-                rreq.Hash = this.toHash();
+                rreq.Hash = this.toHash() + respon.watchId;
                 WatchInfo info;
                 info.created = true;
                 info.watchId = respon.watchId;
@@ -79,25 +79,24 @@ class WatchService : WatchBase
             }
             else if (watchReq.requestUnionCase() == WatchRequest.RequestUnionCase.cancelRequest)
             {
+                logDebug("watch cancel ID : ",watchReq._cancelRequest.watchId);
+
                 auto f = new Future!(ServerReaderWriter!(WatchRequest, WatchResponse), WatchInfo)(
                         rw);
-                WatchResponse respon = new WatchResponse();
-                respon.created = false;
-                respon.watchId = watchReq._cancelRequest.watchId;
+                auto watchID = watchReq._cancelRequest.watchId;
                 auto header = new ResponseHeader();
                 header.clusterId = 1;
                 header.memberId = 1;
                 header.raftTerm = 1;
                 header.revision = 1;
-                respon.header = header;
                 
                 RpcRequest rreq;
                 rreq.CMD = RpcReqCommand.WatchCancelRequest;
-                rreq.Value = respon.watchId.to!string;
-                rreq.Hash = this.toHash();
+                rreq.Value = watchID.to!string;
+                rreq.Hash = this.toHash() + watchID;
                 WatchInfo info;
                 info.created = false;
-                info.watchId = respon.watchId;
+                info.watchId = watchID;
                 info.header = header;
                 f.setExtraData(info);
                 NetonRpcServer.instance().Propose(rreq, f);

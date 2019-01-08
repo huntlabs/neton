@@ -17,7 +17,10 @@ class LeaseService : LeaseBase
         auto f = new Future!(LeaseGrantRequest, LeaseGrantResponse)(req);
 
         if(req.TTL == 0)
+        {
+            logError("grant lease ttl is null");
             return new Status(StatusCode.INVALID_ARGUMENT); 
+        }
 
         RpcRequest rreq;
         if (req.ID == 0)
@@ -40,7 +43,10 @@ class LeaseService : LeaseBase
         auto f = new Future!(LeaseRevokeRequest, LeaseRevokeResponse)(req);
 
         if(req.ID == 0)
+        {
+            logError("revoke lease id is null");
             return new Status(StatusCode.INVALID_ARGUMENT); 
+        }
 
         RpcRequest rreq;
         rreq.CMD = RpcReqCommand.LeaseRevokeRequest;
@@ -80,7 +86,10 @@ class LeaseService : LeaseBase
     override Status LeaseTimeToLive(LeaseTimeToLiveRequest req, ref LeaseTimeToLiveResponse response)
     {
         if(req.ID == 0)
+        {
+            logError("lease timetolive id is null");
             return new Status(StatusCode.INVALID_ARGUMENT); 
+        }
 
         auto f = new Future!(LeaseTimeToLiveRequest, LeaseTimeToLiveResponse)(req);
 

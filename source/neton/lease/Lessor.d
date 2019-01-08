@@ -239,8 +239,8 @@ class Lessor
 
 		if (id in this.leaseMap)
 		{
-			// throw new Exception("ErrLeaseExists");
-			return null;
+			throw new Exception("ErrLeaseExists");
+			// return null;
 		}
 
 		if (l.ttl < this.minLeaseTTL)
@@ -261,6 +261,7 @@ class Lessor
 		LeaseWithTime item = {id:
 		l.ID, time : l.expiry};
 		this.leaseHeap.Push(item);
+		logDebug("---- grant id : ",id," ttl: ",ttl);
 
 		// l.persistTo( /* this.b */ );
 
@@ -270,7 +271,7 @@ class Lessor
 
 		if (this.isPrimary())
 		{
-			this.scheduleCheckpointIfNeeded(l);
+			// this.scheduleCheckpointIfNeeded(l);
 		}
 
 		return l;
@@ -278,6 +279,7 @@ class Lessor
 
 	string Revoke(LeaseID id)
 	{
+		logWarning("revoke Id : ", id);
 		_mutex.lock();
 
 		auto l = (id in this.leaseMap);
@@ -353,7 +355,6 @@ class Lessor
 	int64 Renew(LeaseID id)
 	{
 		_mutex.lock();
-
 		scope (exit)
 			_mutex.unlock();
 
@@ -368,12 +369,12 @@ class Lessor
 		auto l = (id in this.leaseMap);
 		if (l == null)
 		{
+			logWarning("not found in leaseMap----");
 			return -1; /* , ErrLeaseNotFound */
 		}
 
 		if (l.expired())
 		{
-			this._mutex.unlock();
 			// unlock = func() {}
 			///@gxc
 			// select
@@ -386,6 +387,7 @@ class Lessor
 			// 	case  <  - demotec
 			// 		: return  - 1, ErrNotPrimarycase <  - this.stopC : return  - 1, ErrNotPrimary
 			// }
+			logWarning("lease is expire----");
 			return -1;
 		}
 
@@ -615,11 +617,18 @@ class Lessor
 		// if(this.leaseHeap.length() > 0)
 		// {
 		// 	auto item = this.leaseHeap.get!LeaseWithTime(0);
-		// 	logWarning("begin lessor check... : ",item);
+			// logWarning("begin lessor check... : ");
 		// }
-		
-		this.revokeExpiredLeases();
-		this.checkpointScheduledLeases();
+		try
+		{
+			this.revokeExpiredLeases();
+			// this.checkpointScheduledLeases();
+		}
+		catch (Throwable e)
+		{
+			logError("lease runloop error : ", e.msg);
+		}
+
 	}
 
 	// revokeExpiredLeases finds all leases past their expiry and sends them to epxired channel for
@@ -695,6 +704,9 @@ class Lessor
 	Tuple!(Lease, bool, bool) expireExists()
 	{
 		Tuple!(Lease, bool, bool) result;
+		result[0] = null;
+		result[1] = false;
+		result[2] = false;
 		if (this.leaseHeap.length() == 0)
 		{
 			result[0] = null;
@@ -703,14 +715,20 @@ class Lessor
 			return result;
 		}
 
+
 		auto item = this.leaseHeap.get!LeaseWithTime(0);
+		// logInfo("---item id : ",item.id," time :",item.time);
+
 		auto exsit = (item.id in this.leaseMap);
-		if(exsit == null)
+		if (exsit == null)
+		{
+			this.leaseHeap.Pop!LeaseWithTime(); // O(log N)
 			return result;
+		}	
 		result[0] = *exsit;
 		if (result[0] is null)
 		{
-			 
+
 			// lease has expired or been revoked
 			// no need to revoke (nothing is expiry)
 			this.leaseHeap.Pop!LeaseWithTime(); // O(log N)

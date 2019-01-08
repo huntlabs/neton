@@ -78,7 +78,7 @@ class Store : StoreInter
     // If sorted is true, it will sort the content by keys.
     Event Get(string nodePath, bool recursive, bool sorted)
     {
-        nodePath = getSafeKey(nodePath);
+        // nodePath = getSafeKey(nodePath);
         auto e = new Event(EventAction.Get, nodePath, 0, recursive);
         e.setNetonIndex(_currentIndex);
         //e.Node.loadInternalNode(n, recursive, sorted, s.clock)
@@ -89,7 +89,7 @@ class Store : StoreInter
     // set value
     Event Set(string nodePath, bool dir, string value)
     {
-        nodePath = getSafeKey(nodePath);
+        // nodePath = getSafeKey(nodePath);
         // Set new value
         string error;
         auto ok = _kvStore.set(nodePath, value, error);
@@ -111,7 +111,7 @@ class Store : StoreInter
     // create dir
     Event CreateDir(string nodePath)
     {
-        nodePath = getSafeKey(nodePath);
+        // nodePath = getSafeKey(nodePath);
 
         string error;
         auto ok = _kvStore.createDir(nodePath, error);
@@ -131,7 +131,7 @@ class Store : StoreInter
     // watch key or dir
     Watcher Watch(string key,bool recursive, bool stream, ulong sinceIndex)
     {
-        key = getSafeKey(key);
+        // key = getSafeKey(key);
 
         auto keys = key;
         if (sinceIndex == 0)
@@ -139,8 +139,8 @@ class Store : StoreInter
             sinceIndex = _currentIndex + 1;
         }
         // WatcherHub does not know about the current index, so we need to pass it in
-        recursive = _kvStore.isDir(key);
-        auto w = _watcherHub.watch(keys, recursive, stream, sinceIndex, _currentIndex);
+        recursive = true/* _kvStore.isDir(key) */;
+        auto w = _watcherHub.watch(getSafeKey(keys), recursive, stream, sinceIndex, _currentIndex);
         if (w is null)
         {
             return null;
@@ -151,7 +151,7 @@ class Store : StoreInter
     // Delete deletes the node at the given path.
     Event Delete(string nodePath, bool recursive = false)
     {
-        nodePath = getSafeKey(nodePath);
+        // nodePath = getSafeKey(nodePath);
 
         _currentIndex++;
         auto e = new Event(EventAction.Delete, nodePath, _currentIndex);
@@ -248,7 +248,7 @@ class Store : StoreInter
         if (respon !is null)
         {
             _currentIndex++;
-            auto e = new Event(EventAction.Set, getSafeKey(req.Key), _currentIndex);
+            auto e = new Event(EventAction.Set, req.Key, _currentIndex);
             e.setNetonIndex(_currentIndex);
 
             _watcherHub.notify(e);
@@ -259,15 +259,15 @@ class Store : StoreInter
     DeleteRangeResponse deleteRange(RpcRequest req)
     {
         _currentIndex++;
-        auto e = new Event(EventAction.Delete, getSafeKey(req.Key), _currentIndex);
+        auto e = new Event(EventAction.Delete, req.Key, _currentIndex);
         e.setNetonIndex(_currentIndex);
 
-        if (e.dir)
-        {
-            e.setErrorMsg(req.Key ~ " is dir , please use recursive option");
-            _currentIndex--;
-        }
-        else
+        // if (e.dir)
+        // {
+        //     e.setErrorMsg(req.Key ~ " is dir , please use recursive option");
+        //     _currentIndex--;
+        // }
+        // else
         {
             auto respon = _kvStore.deleteRange(req);
             auto kv = new KeyValue();
@@ -279,7 +279,7 @@ class Store : StoreInter
 
             return respon;
         }
-        return null;
+        // return null;
     }
 
     long generateLeaseID()

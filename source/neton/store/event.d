@@ -4,6 +4,7 @@ import neton.store.NodeExtern;
 import std.experimental.allocator;
 import std.json;
 import hunt.logging;
+import neton.store.util;
 
 enum ServiceState
 {
@@ -87,6 +88,11 @@ class Event
     string nodeKey()
     {
         return _node.key;
+    }
+
+    string nodeOriginKey()
+    {
+        return _node.originKey;
     }
 
     JSONValue getNodeValue()

@@ -15,6 +15,12 @@ class KVService : KVBase
 
     override Status Range(RangeRequest req, ref RangeResponse response)
     {
+        logDebug("--------------");
+        if(req.key.length == 0)
+        {
+            logError("get key is null");
+            return new Status(StatusCode.INVALID_ARGUMENT);
+        }
 
         auto f = new Future!(RangeRequest, RangeResponse)(req);
 
@@ -28,13 +34,20 @@ class KVService : KVBase
         logDebug("waiting done..... : ",response);
         if(response is null)
             response = new RangeResponse();
-        NetonRpcServer.instance().removeRpcHandler(rreq.Hash);
 
         return Status.OK;
     }
 
     override Status Put(PutRequest req, ref PutResponse response)
     {
+        logDebug("--------------");
+
+        if(req.key.length == 0)
+        {
+            logError("put key is null");
+            return new Status(StatusCode.INVALID_ARGUMENT);
+        }
+
         auto f = new Future!(PutRequest, PutResponse)(req);
 
         RpcRequest rreq;
@@ -55,6 +68,14 @@ class KVService : KVBase
 
     override Status DeleteRange(DeleteRangeRequest req, ref DeleteRangeResponse response)
     {
+        logDebug("--------------");
+
+        if(req.key.length == 0)
+        {
+            logError("delete key is null");
+            return new Status(StatusCode.INVALID_ARGUMENT);
+        }
+
         auto f = new Future!(DeleteRangeRequest, DeleteRangeResponse)(req);
 
         RpcRequest rreq;

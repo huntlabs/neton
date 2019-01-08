@@ -13,7 +13,8 @@ class NodeExtern
     this(string key, ulong modifiedIndex, bool recursive = false)
     {
         _recursive = recursive;
-        _key = key;
+        _originKey = key;
+        _key = getSafeKey(key);
         _modifiedIndex = modifiedIndex;
         _dir = false;
         loadValue();
@@ -21,6 +22,7 @@ class NodeExtern
 
     void opAssign(S)(auto ref S ne) if (is(S == Unqual!(typeof(this))))
     {
+        _originKey = ne._originKey;
         _key = ne._key;
         _value = ne._value;
         _dir = ne._dir;
@@ -35,6 +37,11 @@ class NodeExtern
         return _key;
     }
 
+    @property string originKey()
+    {
+        return _originKey;
+    }
+
     @property bool dir()
     {
         return _dir;
@@ -47,8 +54,8 @@ class NodeExtern
 
     void loadValue()
     {
-        logWarning("----begin load value - ----");
-        scope(exit) logWarning("----load value finish ----");
+        // logWarning("----begin load value - ----");
+        // scope(exit) logWarning("----load value finish ----");
         try
         {
             if (_key.length == 0)
@@ -62,7 +69,7 @@ class NodeExtern
                 JSONValue node = Store.instance().getJsonValue(_key);
                 if (node.type != JSON_TYPE.NULL)
                 {
-                    res["key"] = _key;
+                    res["key"] = _originKey;
                     auto dir = node["dir"].str == "true" ? true : false;
                     res["dir"] = node["dir"].str;
                     if (!dir)
@@ -95,7 +102,7 @@ class NodeExtern
                                 auto j = Store.instance().getJsonValue(subkey);
                                 if (j.type != JSON_TYPE.NULL)
                                 {
-                                    sub["key"] = subkey;
+                                    sub["key"] = j["key"].str;
                                     sub["dir"] = j["dir"].str;
                                     if (j["dir"].str == "false")
                                     {
@@ -196,13 +203,14 @@ class NodeExtern
 
     NodeExtern Clone()
     {
-        auto ne = theAllocator.make!NodeExtern(_key, _modifiedIndex);
+        auto ne = theAllocator.make!NodeExtern(_originKey, _modifiedIndex);
         ne = this;
         return ne;
     }
 
 private:
     string _key;
+    string _originKey;
     JSONValue _value;
     bool _dir;
     uint _expiration;

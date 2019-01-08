@@ -146,6 +146,7 @@ class RocksdbStore
 
 	bool isDir(string key)
 	{
+		 key = getSafeKey(key);
 		auto value = getJsonValue(key);
 		if (value.type != JSON_TYPE.NULL)
 		{
@@ -229,6 +230,7 @@ class RocksdbStore
 
 	void Remove(string key, bool recursive = false)
 	{
+		 key = getSafeKey(key);
 		if (!recursive)
 			_rocksdb.removeString(key);
 		else
@@ -275,9 +277,10 @@ class RocksdbStore
 		return Lookup(key);
 	}
 
-	bool set(string nodePath, string value, out string error, long leaseid = long.init)
+	bool set(string originKey, string value, out string error, long leaseid = long.init)
 	{
 		//不能是目录
+		auto nodePath = getSafeKey(originKey);
 		auto node = getJsonValue(nodePath);
 		if (node.type == JSON_TYPE.OBJECT && "dir" in node)
 		{
@@ -285,6 +288,7 @@ class RocksdbStore
 			{
 				error ~= nodePath;
 				error ~= "  is dir";
+				logError("set error : ",error,"  info: ",node);
 				return false;
 			}
 		}
@@ -293,6 +297,7 @@ class RocksdbStore
 		if (p == string.init)
 		{
 			error = "the key is illegal";
+			logError("set error : ",error,"  info: ",p);
 			return false;
 		}
 		auto j = getJsonValue(p);
@@ -300,15 +305,17 @@ class RocksdbStore
 		{
 			error ~= p;
 			error ~= " not is dir";
+			logError("set error : ",error,"  info: ",p);
 			return false;
 		}
 
-		setFileKeyValue(nodePath, value, leaseid);
+		setFileKeyValue(originKey, value, leaseid);
 		return true;
 	}
 
 	bool createDir(string path, out string error)
 	{
+		path = getSafeKey(path);
 		//目录或文件存在
 		auto node = getJsonValue(path);
 		if (node.type != JSON_TYPE.NULL)
@@ -539,15 +546,9 @@ class RocksdbStore
 		{
 			if (attachToLease(nodePath, req.LeaseID))
 			{
-				auto ok = set(nodePath, req.Value, error, req.LeaseID);
+				auto ok = set(req.Key, req.Value, error, req.LeaseID);
 				if (ok)
 				{
-					// if (_lessor !is null)
-					// {
-					// 	LeaseItem item = {Key:
-					// 	nodePath};
-					// 	_lessor.Attach(req.LeaseID, [item]);
-					// }
 					PutResponse respon = new PutResponse();
 					auto kv = new KeyValue();
 					kv.key = cast(ubyte[])(req.Key);
@@ -559,7 +560,7 @@ class RocksdbStore
 		}
 		else
 		{
-			auto ok = set(nodePath, req.Value, error);
+			auto ok = set(req.Key, req.Value, error);
 			if (ok)
 			{
 				PutResponse respon = new PutResponse();
@@ -593,8 +594,10 @@ protected:
 		_rocksdb.putString(key, value);
 	}
 
-	void setFileKeyValue(string key, string value, long leaseid = long.init)
+	void setFileKeyValue(string originKey, string value, long leaseid = long.init)
 	{
+		auto key = getSafeKey(originKey);
+
 		auto p = getParent(key);
 		if (p != string.init)
 		{
@@ -614,6 +617,7 @@ protected:
 
 		JSONValue filevalue;
 		filevalue["dir"] = "false";
+		filevalue["key"] = originKey;
 		filevalue["value"] = value;
 		filevalue["leaseID"] = leaseid;
 		filevalue["create_time"] = Instant.now().getEpochSecond();

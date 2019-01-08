@@ -9,7 +9,7 @@ import std.string;
 import std.conv;
 import std.format;
 import std.json;
-import neton.server.NetonServer;
+import neton.server.NetonHttpServer;
 import neton.store.util;
 
 enum RequestMethod
@@ -34,11 +34,11 @@ struct RequestCommand
 
 enum MAX_HTTP_REQUEST_BUFF = 4096;
 
-// alias NetonServer = server.NetonServer.NetonServer;
+// alias NetonHttpServer = server.NetonHttpServer.NetonHttpServer;
 
 class HttpBase
 {
-	this(NetSocket sock, NetonServer netonServer)
+	this(NetSocket sock, NetonHttpServer netonServer)
 	{
 		this._sock = sock;
 		this._netonServer = netonServer;
@@ -143,9 +143,9 @@ class HttpBase
 
 	bool process_request(string url, string strbody)
 	{
-		//if(!NetonServer.instance()._node.isLeader() /*&& _requestMethod != RequestMethod.METHOD_GET*/)
+		//if(!NetonHttpServer.instance()._node.isLeader() /*&& _requestMethod != RequestMethod.METHOD_GET*/)
 		/*{
-			// auto leader = NetonServer.instance.leader();
+			// auto leader = NetonHttpServer.instance.leader();
 			// logInfo("leader id : ", leader);
 			// auto http = HTTP();
 
@@ -184,14 +184,14 @@ class HttpBase
 			// http.onProgress = &this.onHttpProgress;
 			// http.perform();
 
-			// NetonServer.instance.saveHttp(this);
+			// NetonHttpServer.instance.saveHttp(this);
 			JSONValue  res;
 			try
 			{
 				res["action"] = "not leader";
 				
 				JSONValue  leader;
-				auto id = NetonServer.instance.leader();
+				auto id = NetonHttpServer.instance.leader();
 			    leader["id"] = id;
 				foreach(peer;NetonConfig.instance.peersConf)
 				{
@@ -279,7 +279,7 @@ class HttpBase
 			RequestCommand command = {
 			Method:
 				RequestMethod.METHOD_GET, Key : url, Hash : _hash, Params : jparam.toString};
-				NetonServer.instance().ReadIndex(command, this);
+				NetonHttpServer.instance().ReadIndex(command, this);
 				return true;
 			}
 		else if (_requestMethod == RequestMethod.METHOD_PUT)
@@ -290,7 +290,7 @@ class HttpBase
 				RequestCommand command = {
 				Method:
 					RequestMethod.METHOD_PUT, Key : url, Hash : _hash, Params : jparam.toString};
-					NetonServer.instance().Propose(command, this);
+					NetonHttpServer.instance().Propose(command, this);
 					return true;
 				}
 			else if (_requestMethod == RequestMethod.METHOD_DELETE)
@@ -304,7 +304,7 @@ class HttpBase
 						RequestMethod.METHOD_DELETE, Key : url, Hash : _hash,
 					Params : jparam.toString
 			};
-				NetonServer.instance().Propose(command, this);
+				NetonHttpServer.instance().Propose(command, this);
 				return true;
 			}
 			else if (_requestMethod == RequestMethod.METHOD_POST)
@@ -313,7 +313,7 @@ class HttpBase
 				Method:
 					RequestMethod.METHOD_POST, Key : url, Hash : _hash, Params : strbody
 				};
-				NetonServer.instance().Propose(command, this);
+				NetonHttpServer.instance().Propose(command, this);
 				return true;
 			}
 			// else if(path == "/add")
@@ -324,7 +324,7 @@ class HttpBase
 			// 		return do_response("ID or Context must not empty");
 
 			// 	ConfChange cc = { NodeID : to!ulong(*nodeID) , Type : ConfChangeType.ConfChangeAddNode ,Context:*Context };
-			// 	NetonServer.instance().ProposeConfChange(cc);
+			// 	NetonHttpServer.instance().ProposeConfChange(cc);
 			// 	return do_response("have request this add conf");
 
 			// }
@@ -334,7 +334,7 @@ class HttpBase
 			// 	if(nodeID == null || nodeID.length == 0)
 			// 		return do_response("ID must not empty");
 			// 	ConfChange cc = { NodeID : to!ulong(*nodeID) , Type : ConfChangeType.ConfChangeRemoveNode };
-			// 	NetonServer.instance().ProposeConfChange(cc);
+			// 	NetonHttpServer.instance().ProposeConfChange(cc);
 			// 	return do_response("have request this remove conf");
 			// }
 		else
@@ -370,7 +370,7 @@ class HttpBase
 
 		void onClose()
 		{
-			NetonServer.instance.handleHttpClose(_hash);
+			NetonHttpServer.instance.handleHttpClose(_hash);
 			// super.onClose();
 		}
 
@@ -403,5 +403,5 @@ class HttpBase
 
 		// ubyte[]         buffer;
 		private NetSocket _sock;
-		private NetonServer _netonServer;
+		private NetonHttpServer _netonServer;
 	}
