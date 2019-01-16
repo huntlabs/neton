@@ -7,7 +7,7 @@ import std.array;
 import std.format;
 
 // import protocol.Msg;
-import hunt.util.serialize;
+import hunt.util.Serialize;
 import hunt.logging;
 import std.algorithm.sorting;
 

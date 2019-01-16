@@ -4,7 +4,7 @@ import neton.wal.record;
 import neton.wal.util;
 import neton.wal.decoder;
 import neton.wal.encoder;
-import hunt.util.serialize;	
+import hunt.util.Serialize;	
 import std.stdio;
 import hunt.logging;
 import std.file;

@@ -7,10 +7,10 @@ import core.sync.rwmutex;
 import std.bitmanip;
 import core.thread;
 
-import hunt.time;
+import hunt.util.DateTime;
 import hunt.logging;
-import hunt.lang.exception;
-import hunt.container;
+import hunt.Exceptions;
+import hunt.collection;
 
 import etcdserverpb.rpc;
 import neton.server.NetonRpcServer;
@@ -737,7 +737,7 @@ class Lessor
 			return result;
 		}
 
-		if (Instant.now().getEpochSecond() < item.time) /* expiration time */
+		if (time() < item.time) /* expiration time */
 		{
 			// Candidate expirations are caught up, reinsert this item
 			// and no need to revoke (nothing is expiry)
@@ -810,7 +810,7 @@ class Lessor
 			// }
 			LeaseWithTime item = {
 			id:
-				lease.ID, time : Instant.now().getEpochSecond() + (this.checkpointInterval) /* .UnixNano() */
+				lease.ID, time : time() + (this.checkpointInterval) /* .UnixNano() */
 
 			};
 			this.leaseCheckpointHeap.Push(item);
@@ -824,7 +824,7 @@ class Lessor
 			return null;
 		}
 
-		auto now = Instant.now().getEpochSecond();
+		auto now = time();
 		LeaseCheckpoint[] cps;
 		while (this.leaseCheckpointHeap.length() > 0 && (cps.length) < checkpointLimit)
 		{
@@ -1039,7 +1039,7 @@ class Lease
 	// refresh refreshes the expiry of the lease.
 	void refresh(long extend)
 	{
-		auto newExpiry = Instant.now().getEpochSecond() + (extend + (this.RemainingTTL()) * 1);
+		auto newExpiry = time() + (extend + (this.RemainingTTL()) * 1);
 		this.expiryMu.lock();
 		scope (exit)
 			this.expiryMu.unlock();
@@ -1078,7 +1078,7 @@ class Lease
 		{
 			return long.max;
 		}
-		return  /* time.Until */ (this.expiry - Instant.now().getEpochSecond());
+		return  /* time.Until */ (this.expiry - time());
 	}
 
 }

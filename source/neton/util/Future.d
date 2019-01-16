@@ -2,7 +2,7 @@ module neton.util.Future;
 import core.sync.condition;
 import core.sync.mutex;
 import hunt.logging;
-import hunt.util.serialize;
+import hunt.util.Serialize;
 
 class Future(Req , Res)
 {

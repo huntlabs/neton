@@ -1,7 +1,7 @@
 module neton.network.ServerHandler;
 
 import hunt.logging;
-import hunt.util.serialize;
+import hunt.util.Serialize;
 
 import hunt.net;
 import hunt.raft;

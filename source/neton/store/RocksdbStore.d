@@ -11,8 +11,8 @@ import std.algorithm.searching;
 import std.algorithm.mutation;
 
 import hunt.logging;
-import hunt.time;
-import hunt.util.serialize;
+import hunt.util.DateTime;
+import hunt.util.Serialize;
 
 import rocksdb.database;
 import rocksdb.options;
@@ -361,7 +361,7 @@ class RocksdbStore
 				newLease["id"] = leaseid;
 				JSONValue[] items;
 				newLease["items"] = items;
-				newLease["create_time"] = Instant.now().getEpochSecond();
+				newLease["create_time"] = time();
 				setLeaseKeyValue(LEASE_PREFIX ~ leaseid.to!string, newLease.toString);
 
 				///update global leaseID
@@ -398,7 +398,7 @@ class RocksdbStore
 			{
 				JSONValue item;
 				item["key"] = key;
-				item["time"] = Instant.now().getEpochSecond();
+				item["time"] = time();
 				lease["items"].array ~= item;
 				SetValue(LEASE_PREFIX ~ leaseid.to!string, lease.toString);
 			}
@@ -464,8 +464,7 @@ class RocksdbStore
 		if (leaseItem.type != JSONType.NULL)
 		{
 			respon.ID = leaseid;
-			auto remainTTL = (leaseItem["create_time"].integer + leaseItem["ttl"].integer - Instant.now()
-					.getEpochSecond());
+			auto remainTTL = (leaseItem["create_time"].integer + leaseItem["ttl"].integer - time());
 			respon.TTL = remainTTL > 0 ? remainTTL : 0;
 			respon.grantedTTL = leaseItem["ttl"].integer;
 			foreach (item; leaseItem["items"].array)
@@ -522,7 +521,7 @@ class RocksdbStore
 				if (lease.type != JSONType.NULL)
 				{
 					lease["ttl"] = newTTL;
-					lease["create_time"] = Instant.now().getEpochSecond();
+					lease["create_time"] = time();
 
 					setLeaseKeyValue(LEASE_PREFIX ~ req.LeaseID.to!string, lease.toString);
 
@@ -620,7 +619,7 @@ protected:
 		filevalue["key"] = originKey;
 		filevalue["value"] = value;
 		filevalue["leaseID"] = leaseid;
-		filevalue["create_time"] = Instant.now().getEpochSecond();
+		filevalue["create_time"] = time();
 
 		SetValue(key, filevalue.toString);
 	}

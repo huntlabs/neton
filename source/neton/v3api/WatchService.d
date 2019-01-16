@@ -9,7 +9,7 @@ import neton.server.NetonRpcServer;
 import neton.util.Future;
 import neton.v3api.Command;
 import std.stdio;
-import hunt.util.serialize;
+import hunt.util.Serialize;
 import core.sync.mutex;
 import std.conv;
 

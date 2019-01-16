@@ -3,7 +3,7 @@ module neton.wal.decoder;
 import std.stdio;
 import neton.wal.record;
 import hunt.logging;
-import hunt.util.serialize;
+import hunt.util.Serialize;
 
 // const minSectorSize = 512;
 

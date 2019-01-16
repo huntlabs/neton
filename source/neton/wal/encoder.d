@@ -1,7 +1,7 @@
 module neton.wal.encoder;
 import std.file;
 import neton.wal.record;
-import hunt.util.serialize;
+import hunt.util.Serialize;
 import std.stdio;
 import hunt.logging;
 // walPageBytes is the alignment for flushing records to the backing Writer.

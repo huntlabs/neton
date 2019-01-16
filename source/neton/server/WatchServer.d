@@ -9,8 +9,8 @@ import std.algorithm.mutation;
 import hunt.logging;
 import hunt.raft;
 import hunt.net;
-import hunt.event.timer.common;
-import hunt.util.timer;
+import hunt.event.timer.Common;
+import hunt.util.Timer;
 import hunt.event.timer;
 
 import neton.server.NetonRpcServer;
