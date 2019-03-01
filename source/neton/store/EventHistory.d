@@ -1,6 +1,6 @@
 module neton.store.EventHistory;
 
-import neton.store.event;
+import neton.store.Event;
 import neton.store.EventQueue;
 import core.sync.mutex;
 import hunt.logging;

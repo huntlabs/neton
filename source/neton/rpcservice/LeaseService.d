@@ -1,4 +1,4 @@
-module neton.v3api.LeaseService;
+module neton.rpcservice.LeaseService;
 
 import etcdserverpb.kv;
 import etcdserverpb.rpc;
@@ -7,7 +7,7 @@ import grpc;
 import hunt.logging;
 import neton.server.NetonRpcServer;
 import neton.util.Future;
-import neton.v3api.Command;
+import neton.rpcservice.Command;
 import std.stdio;
 
 class LeaseService : LeaseBase

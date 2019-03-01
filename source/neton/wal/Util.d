@@ -1,4 +1,4 @@
-module neton.wal.util;
+module neton.wal.Util;
 
 import std.string;
 import std.format;

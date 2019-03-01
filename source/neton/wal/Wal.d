@@ -1,9 +1,9 @@
-module neton.wal.wal;
+module neton.wal.Wal;
 
-import neton.wal.record;
-import neton.wal.util;
-import neton.wal.decoder;
-import neton.wal.encoder;
+import neton.wal.Record;
+import neton.wal.Util;
+import neton.wal.Decoder;
+import neton.wal.Encoder;
 import hunt.util.Serialize;	
 import std.stdio;
 import hunt.logging;

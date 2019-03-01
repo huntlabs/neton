@@ -14,7 +14,7 @@ import hunt.collection;
 
 import etcdserverpb.rpc;
 import neton.server.NetonRpcServer;
-import neton.v3api.Command;
+import neton.rpcservice.Command;
 
 import neton.lease.Heap;
 import neton.lease.LeaseQueue;

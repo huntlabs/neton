@@ -12,7 +12,7 @@ import core.thread;
 import core.sync.mutex;
 import std.string;
 
-import neton.store.store;
+import neton.store.Store;
 import hunt.logging;
 import hunt.util.Serialize;
 import hunt.util.Timer;
@@ -23,16 +23,16 @@ import neton.server.PeerServers;
 import neton.server.WatchServer;
 
 import std.conv;
-import neton.wal.wal;
-import neton.snap.snapshotter;
-import neton.wal.record;
-import neton.wal.util;
+import neton.wal.Wal;
+import neton.snap.SnapShotter;
+import neton.wal.Record;
+import neton.wal.Util;
 import std.file;
 import std.stdio;
 import std.json;
-import neton.store.event;
-import neton.store.watcher;
-import neton.store.util;
+import neton.store.Event;
+import neton.store.Watcher;
+import neton.store.Util;
 import std.algorithm.mutation;
 
 import neton.v3api;
@@ -49,7 +49,7 @@ import neton.lease;
 enum defaultSnapCount = 10;
 enum snapshotCatchUpEntriesN = 10000;
 
-alias Event = neton.store.event.Event;
+alias Event = neton.store.Event.Event;
 class NetonRpcServer : MessageReceiver
 {
 public:
@@ -151,7 +151,7 @@ public:
 
 					RpcRequest command = unserialize!RpcRequest(cast(byte[]) ents[i].Data);
 					logDebug("publish CMD : ", command, " ID :", _ID);
-					neton.store.event.Event resultEvent;
+					neton.store.Event.Event resultEvent;
 					auto h = (command.Hash in _request);
 					iswatch = false;
 					switch (command.CMD)
@@ -825,7 +825,7 @@ private:
 	}
 
 private:
-	__gshared NetonRpcServer _gserver;
+	private __gshared NetonRpcServer _gserver;
 
 	MemoryStorage _storage;
 	ulong _ID;

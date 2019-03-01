@@ -1,4 +1,4 @@
-module neton.wal.record;
+module neton.wal.Record;
 
 enum WalType {
     metadataType  = 0,

@@ -1,17 +1,17 @@
-module neton.server.health;
+module neton.server.Health;
 
 import std.json;
 import std.net.curl;
 import std.stdio;
 import core.time;
 import std.parallelism;
-import neton.store.event;
+import neton.store.Event;
 
 // import zhang2018.dreactor.time.Timer;
 import hunt.event.timer;
 import hunt.logging;
 import neton.server.NetonHttpServer;
-import neton.network.http;
+import neton.network.Http;
 
 class Health
 {

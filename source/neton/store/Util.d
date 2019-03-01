@@ -1,4 +1,4 @@
-module neton.store.util;
+module neton.store.Util;
 import std.stdio;
 import std.array;
 import std.string;

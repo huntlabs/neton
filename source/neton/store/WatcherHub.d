@@ -8,8 +8,8 @@ import core.sync.mutex;
 import std.experimental.allocator;
 import hunt.logging;
 import std.string;
-import neton.store.watcher;
-import neton.store.event;
+import neton.store.Watcher;
+import neton.store.Event;
 // A watcherHub contains all subscribed watchers
 // watchers is a map with watched path as key and watcher as value
 // EventHistory keeps the old events for watcherHub. It is used to help

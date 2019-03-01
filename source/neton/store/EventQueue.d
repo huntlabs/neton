@@ -1,6 +1,6 @@
 module neton.store.EventQueue;
 
-import neton.store.event;
+import neton.store.Event;
 import hunt.logging;
 
 class EventQueue

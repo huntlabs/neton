@@ -1,4 +1,4 @@
-module neton.snap.snapshotter;
+module neton.snap.SnapShotter;
 
 import std.stdio;
 import std.file;

@@ -1,4 +1,4 @@
-module neton.v3api.KVService;
+module neton.rpcservice.KVService;
 
 import etcdserverpb.kv;
 import etcdserverpb.rpc;
@@ -7,7 +7,7 @@ import grpc;
 import hunt.logging;
 import neton.server.NetonRpcServer;
 import neton.util.Future;
-import neton.v3api.Command;
+import neton.rpcservice.Command;
 import std.stdio;
 
 class KVService : KVBase

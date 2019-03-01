@@ -1,4 +1,4 @@
-module neton.v3api.Command;
+module neton.rpcservice.Command;
 
 enum RpcReqCommand
 {

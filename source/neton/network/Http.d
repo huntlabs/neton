@@ -1,4 +1,4 @@
-module neton.network.http;
+module neton.network.Http;
 
 import hunt.net;
 import hunt.raft;
@@ -10,7 +10,7 @@ import std.conv;
 import std.format;
 import std.json;
 import neton.server.NetonHttpServer;
-import neton.store.util;
+import neton.store.Util;
 
 enum RequestMethod
 {

@@ -1,11 +1,11 @@
 module neton.store.NodeExtern;
 import std.experimental.allocator;
 import std.algorithm.searching;
-import neton.store.store;
+import neton.store.Store;
 import std.json;
 import hunt.logging;
 import std.array;
-import neton.store.util;
+import neton.store.Util;
 
 class NodeExtern
 {

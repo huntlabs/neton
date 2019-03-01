@@ -17,11 +17,11 @@ import hunt.util.Serialize;
 import rocksdb.database;
 import rocksdb.options;
 
-import neton.store.util;
+import neton.store.Util;
 import neton.lease;
 import etcdserverpb.rpc;
 import etcdserverpb.kv;
-import neton.v3api.Command;
+import neton.rpcservice.Command;
 
 /*
  * service register/deregister store format

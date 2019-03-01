@@ -1,19 +1,19 @@
-module neton.store.store;
+module neton.store.Store;
 
 import core.sync.mutex;
 import neton.store.WatcherHub;
 import neton.store.RocksdbStore;
-import neton.store.event;
-import neton.store.watcher;
+import neton.store.Event;
+import neton.store.Watcher;
 import hunt.logging;
 import std.json;
 import std.uni;
 import std.algorithm.searching;
-import neton.store.util;
+import neton.store.Util;
 
 import etcdserverpb.rpc;
 import etcdserverpb.kv : KeyValue;
-import neton.v3api.Command;
+import neton.rpcservice.Command;
 
 import neton.lease;
 
@@ -54,14 +54,14 @@ interface StoreInter
 
 class Store : StoreInter
 {
-    __gshared Store _gstore;
+    private __gshared Store _gstore;
 
     void Init(ulong ID, Lessor l)
     {
         _kvStore = new RocksdbStore(ID, l);
     }
 
-    this()
+    private this()
     {
         _currentIndex = 0;
         _watcherHub = new WatcherHub(1000);

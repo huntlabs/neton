@@ -1,7 +1,7 @@
 module neton.wal;
 
-public import neton.wal.decoder;
-public import neton.wal.encoder;
-public import neton.wal.record;
-public import neton.wal.util;
-public import neton.wal.wal;
+public import neton.wal.Decoder;
+public import neton.wal.Encoder;
+public import neton.wal.Record;
+public import neton.wal.Util;
+public import neton.wal.Wal;

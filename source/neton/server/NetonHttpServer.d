@@ -8,7 +8,7 @@ import core.thread;
 import core.sync.mutex;
 import std.string;
 
-import neton.store.store;
+import neton.store.Store;
 import hunt.logging;
 import hunt.util.Serialize;
 import hunt.util.Timer;
@@ -16,19 +16,19 @@ import hunt.event.timer;
 import hunt.event.timer.Common;
 import neton.network.NodeClient;
 import neton.server.NetonConfig;
-import neton.server.health;
+import neton.server.Health;
 
 import std.conv;
-import neton.wal.wal;
-import neton.snap.snapshotter;
-import neton.wal.record;
-import neton.wal.util;
+import neton.wal.Wal;
+import neton.snap.SnapShotter;
+import neton.wal.Record;
+import neton.wal.Util;
 import std.file;
 import std.stdio;
 import std.json;
-import neton.store.event;
-import neton.store.watcher;
-import neton.store.util;
+import neton.store.Event;
+import neton.store.Watcher;
+import neton.store.Util;
 import std.algorithm.mutation;
 
 enum defaultSnapCount = 10;
@@ -36,7 +36,7 @@ enum snapshotCatchUpEntriesN = 10000;
 
 class NetonHttpServer : MessageReceiver
 {
-	__gshared NetonHttpServer _gserver;
+	private static NetonHttpServer _gserver;
 
 	this()
 	{

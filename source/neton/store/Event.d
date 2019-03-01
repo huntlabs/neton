@@ -1,10 +1,10 @@
-module neton.store.event;
+module neton.store.Event;
 
 import neton.store.NodeExtern;
 import std.experimental.allocator;
 import std.json;
 import hunt.logging;
-import neton.store.util;
+import neton.store.Util;
 
 enum ServiceState
 {

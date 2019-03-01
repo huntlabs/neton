@@ -1,6 +1,6 @@
-module neton.store.watcher;
+module neton.store.Watcher;
 
-import neton.store.event;
+import neton.store.Event;
 import std.uuid;
 import hunt.logging;
 

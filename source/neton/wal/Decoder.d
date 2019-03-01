@@ -1,7 +1,7 @@
-module neton.wal.decoder;
+module neton.wal.Decoder;
 
 import std.stdio;
-import neton.wal.record;
+import neton.wal.Record;
 import hunt.logging;
 import hunt.util.Serialize;
 
