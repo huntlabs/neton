@@ -54,7 +54,14 @@ interface StoreInter
 
 class Store : StoreInter
 {
-    private __gshared Store _gstore;
+    private
+    {
+        __gshared Store _gstore;
+        RocksdbStore _kvStore;
+        WatcherHub _watcherHub;
+        ulong _currentIndex;
+        Mutex _mtx;
+    }
 
     void Init(ulong ID, Lessor l)
     {
@@ -129,7 +136,7 @@ class Store : StoreInter
     }
 
     // watch key or dir
-    Watcher Watch(string key,bool recursive, bool stream, ulong sinceIndex)
+    Watcher Watch(string key, bool recursive, bool stream, ulong sinceIndex)
     {
         // key = getSafeKey(key);
 
@@ -139,7 +146,7 @@ class Store : StoreInter
             sinceIndex = _currentIndex + 1;
         }
         // WatcherHub does not know about the current index, so we need to pass it in
-        recursive = true/* _kvStore.isDir(key) */;
+        recursive = true  /* _kvStore.isDir(key) */ ;
         auto w = _watcherHub.watch(getSafeKey(keys), recursive, stream, sinceIndex, _currentIndex);
         if (w is null)
         {
@@ -234,21 +241,67 @@ class Store : StoreInter
     }
 
     /// rpc interface
+    RangeResponse get(RpcRequest req)
+    {
+        if (req.CMD == RpcReqCommand.RangeRequest)
+        {
+            auto e = new Event(EventAction.Get,req.Key, req.Key, 0);
+            e.setNetonIndex(_currentIndex);
+
+            RangeResponse respon = new RangeResponse();
+            respon.kvs = e.getKeyValues();
+            respon.count = respon.kvs.length;
+            return respon;
+        }
+        else if (req.CMD == RpcReqCommand.ConfigRangeRequest)
+        {
+            auto e = new Event(EventAction.Get,req.Key, getConfigKey(req.Key), 0);
+            e.setNetonIndex(_currentIndex);
+
+            RangeResponse respon = new RangeResponse();
+            respon.kvs = e.getKeyValues();
+            respon.count = respon.kvs.length;
+            return respon;
+        }
+        else if (req.CMD == RpcReqCommand.RegistryRangeRequest)
+        {
+            auto e = new Event(EventAction.Get,req.Key, getRegistryKey(req.Key), 0);
+            e.setNetonIndex(_currentIndex);
+
+            RangeResponse respon = new RangeResponse();
+            respon.kvs = e.getKeyValues();
+            respon.count = respon.kvs.length;
+            return respon;
+        }
+        return null;
+    }
 
     PutResponse put(RpcRequest req)
     {
         auto safeKey = getSafeKey(req.Key);
-        if(isRemained(safeKey))
+        if (isRemained(safeKey))
         {
             return null;
         }
-        
-        auto respon = _kvStore.put(req);
 
+        auto respon = _kvStore.put(req);
+        string nodePath;
+		if(req.CMD == RpcReqCommand.ConfigPutRequest)
+		{
+			nodePath = getConfigKey(req.Key);
+		}
+		else if(req.CMD == RpcReqCommand.RegistryPutRequest)
+		{
+			nodePath = getRegistryKey(req.Key);
+		}
+		else
+		{
+			nodePath = getSafeKey(req.Key);
+		}
         if (respon !is null)
         {
             _currentIndex++;
-            auto e = new Event(EventAction.Set, req.Key, _currentIndex);
+            auto e = new Event(EventAction.Set,req.Key, nodePath, _currentIndex);
             e.setNetonIndex(_currentIndex);
 
             _watcherHub.notify(e);
@@ -259,15 +312,21 @@ class Store : StoreInter
     DeleteRangeResponse deleteRange(RpcRequest req)
     {
         _currentIndex++;
-        auto e = new Event(EventAction.Delete, req.Key, _currentIndex);
+        string nodePath;
+		if(req.CMD == RpcReqCommand.ConfigDeleteRangeRequest)
+		{
+			nodePath = getConfigKey(req.Key);
+		}
+		else if(req.CMD == RpcReqCommand.RegistryDeleteRangeRequest)
+		{
+			nodePath = getRegistryKey(req.Key);
+		}
+		else
+		{
+			nodePath = getSafeKey(req.Key);
+		}
+        auto e = new Event(EventAction.Delete, req.Key,nodePath, _currentIndex);
         e.setNetonIndex(_currentIndex);
-
-        // if (e.dir)
-        // {
-        //     e.setErrorMsg(req.Key ~ " is dir , please use recursive option");
-        //     _currentIndex--;
-        // }
-        // else
         {
             auto respon = _kvStore.deleteRange(req);
             auto kv = new KeyValue();
@@ -275,11 +334,11 @@ class Store : StoreInter
             kv.value = cast(ubyte[])(e.rpcValue());
             respon.prevKvs ~= kv;
 
-            _watcherHub.notify(e);
+            if(respon.deleted > 0)
+                _watcherHub.notify(e);
 
             return respon;
         }
-        // return null;
     }
 
     long generateLeaseID()
@@ -328,14 +387,5 @@ class Store : StoreInter
     {
         return _kvStore.getJsonValue(key);
     }
-    // void setKeyValue(string key , string value)
-    // {
-    //     _kvStore.SetValue(key,value);
-    // }
-private:
-    RocksdbStore _kvStore;
-    WatcherHub _watcherHub;
-    ulong _currentIndex;
-    Mutex _mtx;
 
 }

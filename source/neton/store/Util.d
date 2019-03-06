@@ -5,6 +5,7 @@ import std.string;
 import std.algorithm.searching;
 import std.json;
 
+const string CONFIG_PREFIX = "/config/";
 const string SERVICE_PREFIX = "/service/";
 const string LEASE_PREFIX = "/lease/";
 const string LEASE_GEN_ID_PREFIX = "/lease/ID";
@@ -14,10 +15,22 @@ const string LEASE_GEN_ID_PREFIX = "/lease/ID";
 
 bool isRemained(string key)
 {
-    if (startsWith(key, SERVICE_PREFIX[0 .. $ - 1]) || startsWith(key, LEASE_PREFIX[0 .. $ - 1]))
+    if (startsWith(key, SERVICE_PREFIX[0 .. $ - 1]) 
+        || startsWith(key, CONFIG_PREFIX[0 .. $ - 1])
+        || startsWith(key, LEASE_PREFIX[0 .. $ - 1]))
         return true;
 
     return false;
+}
+
+string getConfigKey(string name)
+{
+    return CONFIG_PREFIX ~ removeDelimiter(name);
+}
+
+string getRegistryKey(string name)
+{
+    return SERVICE_PREFIX ~ removeDelimiter(name);
 }
 
 string getSafeKey(string key)

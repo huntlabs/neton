@@ -35,7 +35,7 @@ import neton.store.Watcher;
 import neton.store.Util;
 import std.algorithm.mutation;
 
-import neton.v3api;
+import neton.rpcservice;
 import etcdserverpb.kv;
 import etcdserverpb.rpc;
 import etcdserverpb.rpcrpc;
@@ -52,6 +52,36 @@ enum snapshotCatchUpEntriesN = 10000;
 alias Event = neton.store.Event.Event;
 class NetonRpcServer : MessageReceiver
 {
+	private
+	{
+		__gshared NetonRpcServer _gserver;
+
+		MemoryStorage _storage;
+		ulong _ID;
+		NetServer!(ServerHandler, MessageReceiver) _server;
+
+		RawNode _node;
+
+		bool _join;
+		ulong _lastIndex;
+		ConfState _confState;
+		ulong _snapshotIndex;
+		ulong _appliedIndex;
+
+		Object[ulong] _request; /// key is hashId
+
+		string _waldir; // path to WAL directory
+		string _snapdir; // path to snapshot directory
+		Snapshotter _snapshotter;
+		WAL _wal;
+
+		ulong _lastLeader = 0;
+		Mutex _mutex;
+
+		Lessor _lessor;
+		Queue!RpcRequest _proposeQueue;
+	}
+
 public:
 
 	void start(bool join)
@@ -157,18 +187,12 @@ public:
 					switch (command.CMD)
 					{
 					case RpcReqCommand.RangeRequest:
+					case RpcReqCommand.ConfigRangeRequest:
+					case RpcReqCommand.RegistryRangeRequest:
 						{
-							bool recursive = false;
-							resultEvent = Store.instance.Get(command.Key, recursive, false);
+							auto respon = Store.instance.get(command);
 							if (h != null)
 							{
-								logDebug("rpc handler do response ");
-
-								RangeResponse respon = new RangeResponse();
-
-								respon.kvs = resultEvent.getKeyValues();
-								respon.count = respon.kvs.length;
-
 								auto handler = cast(Future!(RangeRequest, RangeResponse))(*h);
 								if (handler !is null)
 								{
@@ -188,6 +212,8 @@ public:
 						}
 						break;
 					case RpcReqCommand.PutRequest:
+					case RpcReqCommand.ConfigPutRequest:
+					case RpcReqCommand.RegistryPutRequest:
 						{
 							auto respon = Store.instance.put(command);
 							if (h != null)
@@ -210,6 +236,8 @@ public:
 						}
 						break;
 					case RpcReqCommand.DeleteRangeRequest:
+					case RpcReqCommand.ConfigDeleteRangeRequest:
+					case RpcReqCommand.RegistryDeleteRangeRequest:
 						{
 							auto respon = Store.instance.deleteRange(command);
 							if (h != null)
@@ -508,13 +536,12 @@ public:
 				{
 					continue;
 				}
-				if (command.CMD == RpcReqCommand.RangeRequest)
+				if (command.CMD == RpcReqCommand.RangeRequest 
+					|| command.CMD == RpcReqCommand.ConfigRangeRequest
+					|| command.CMD == RpcReqCommand.RegistryRangeRequest)
 				{
-					auto e = Store.instance.Get(command.Key, false, false);
+					auto respon = Store.instance.get(command);
 
-					RangeResponse respon = new RangeResponse();
-					respon.kvs = e.getKeyValues();
-					respon.count = respon.kvs.length;
 					foreach (kv; respon.kvs)
 						logDebug("KeyValue pair (%s , %s)".format(cast(string)(kv.key),
 								cast(string)(kv.value)));
@@ -824,31 +851,4 @@ private:
 		_snapshotIndex = _appliedIndex;
 	}
 
-private:
-	private __gshared NetonRpcServer _gserver;
-
-	MemoryStorage _storage;
-	ulong _ID;
-	NetServer!(ServerHandler, MessageReceiver) _server;
-
-	RawNode _node;
-
-	bool _join;
-	ulong _lastIndex;
-	ConfState _confState;
-	ulong _snapshotIndex;
-	ulong _appliedIndex;
-
-	Object[ulong] _request; /// key is hashId
-
-	string _waldir; // path to WAL directory
-	string _snapdir; // path to snapshot directory
-	Snapshotter _snapshotter;
-	WAL _wal;
-
-	ulong _lastLeader = 0;
-	Mutex _mutex;
-
-	Lessor _lessor;
-	Queue!RpcRequest _proposeQueue;
 }

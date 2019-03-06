@@ -302,16 +302,19 @@ class Lessor
 
 		// sort keys so deletes are in same order among all members,
 		// otherwise the backened hashes will be different
-		auto keys = l.Keys();
-		// sort.StringSlice(keys).Sort();
-		foreach (key; keys)
+		if(this.isPrimary())
 		{
-			// txn.DeleteRange(cast(byte[])(key), null);
-			logWarning("revoke lease attach's key : ", key);
-			RpcRequest rreq;
-			rreq.CMD = RpcReqCommand.DeleteRangeRequest;
-			rreq.Key = key;
-			NetonRpcServer.instance.Propose(rreq);
+			auto keys = l.Keys();
+			// sort.StringSlice(keys).Sort();
+			foreach (key; keys)
+			{
+				// txn.DeleteRange(cast(byte[])(key), null);
+				logWarning("revoke lease attach's key : ", key);
+				RpcRequest rreq;
+				rreq.CMD = RpcReqCommand.DeleteRangeRequest;
+				rreq.Key = key;
+				NetonRpcServer.instance.Propose(rreq);
+			}
 		}
 
 		_mutex.lock();

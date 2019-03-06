@@ -22,9 +22,9 @@ class KVClient
 		_channel = channel;
 	}
 
-	Status Range( RangeRequest request , ref RangeResponse response)
+	RangeResponse Range( RangeRequest request)
 	{
-		mixin(CM!(KVBase.SERVICE));
+		mixin(CM!(RangeResponse , KVBase.SERVICE));
 	}
 
 	void Range( RangeRequest request , void delegate(Status status , RangeResponse response) dele)
@@ -32,9 +32,9 @@ class KVClient
 		mixin(CMA!(RangeResponse , KVBase.SERVICE));
 	}
 
-	Status Put( PutRequest request , ref PutResponse response)
+	PutResponse Put( PutRequest request)
 	{
-		mixin(CM!(KVBase.SERVICE));
+		mixin(CM!(PutResponse , KVBase.SERVICE));
 	}
 
 	void Put( PutRequest request , void delegate(Status status , PutResponse response) dele)
@@ -42,9 +42,9 @@ class KVClient
 		mixin(CMA!(PutResponse , KVBase.SERVICE));
 	}
 
-	Status DeleteRange( DeleteRangeRequest request , ref DeleteRangeResponse response)
+	DeleteRangeResponse DeleteRange( DeleteRangeRequest request)
 	{
-		mixin(CM!(KVBase.SERVICE));
+		mixin(CM!(DeleteRangeResponse , KVBase.SERVICE));
 	}
 
 	void DeleteRange( DeleteRangeRequest request , void delegate(Status status , DeleteRangeResponse response) dele)
@@ -82,6 +82,140 @@ class KVBase: GrpcService
 }
 
 
+class ConfigClient
+{
+	this(Channel channel)
+	{
+		_channel = channel;
+	}
+
+	RangeResponse Range( RangeRequest request)
+	{
+		mixin(CM!(RangeResponse , ConfigBase.SERVICE));
+	}
+
+	void Range( RangeRequest request , void delegate(Status status , RangeResponse response) dele)
+	{
+		mixin(CMA!(RangeResponse , ConfigBase.SERVICE));
+	}
+
+	PutResponse Put( PutRequest request)
+	{
+		mixin(CM!(PutResponse , ConfigBase.SERVICE));
+	}
+
+	void Put( PutRequest request , void delegate(Status status , PutResponse response) dele)
+	{
+		mixin(CMA!(PutResponse , ConfigBase.SERVICE));
+	}
+
+	DeleteRangeResponse DeleteRange( DeleteRangeRequest request)
+	{
+		mixin(CM!(DeleteRangeResponse , ConfigBase.SERVICE));
+	}
+
+	void DeleteRange( DeleteRangeRequest request , void delegate(Status status , DeleteRangeResponse response) dele)
+	{
+		mixin(CMA!(DeleteRangeResponse , ConfigBase.SERVICE));
+	}
+
+
+	private:
+	Channel _channel;
+}
+
+class ConfigBase: GrpcService
+{
+	enum SERVICE  = "etcdserverpb.Config";
+	string getModule()
+	{
+		return SERVICE;
+	}
+
+	Status Range(RangeRequest , ref RangeResponse){ return Status.OK; }
+	Status Put(PutRequest , ref PutResponse){ return Status.OK; }
+	Status DeleteRange(DeleteRangeRequest , ref DeleteRangeResponse){ return Status.OK; }
+
+	Status process(string method , GrpcStream stream)
+	{
+		switch(method)
+		{
+			mixin(SM!(RangeRequest , RangeResponse , "Range"));
+			mixin(SM!(PutRequest , PutResponse , "Put"));
+			mixin(SM!(DeleteRangeRequest , DeleteRangeResponse , "DeleteRange"));
+			mixin(NONE());
+		}
+	}
+}
+
+
+class RegistryClient
+{
+	this(Channel channel)
+	{
+		_channel = channel;
+	}
+
+	RangeResponse Range( RangeRequest request)
+	{
+		mixin(CM!(RangeResponse , RegistryBase.SERVICE));
+	}
+
+	void Range( RangeRequest request , void delegate(Status status , RangeResponse response) dele)
+	{
+		mixin(CMA!(RangeResponse , RegistryBase.SERVICE));
+	}
+
+	PutResponse Put( PutRequest request)
+	{
+		mixin(CM!(PutResponse , RegistryBase.SERVICE));
+	}
+
+	void Put( PutRequest request , void delegate(Status status , PutResponse response) dele)
+	{
+		mixin(CMA!(PutResponse , RegistryBase.SERVICE));
+	}
+
+	DeleteRangeResponse DeleteRange( DeleteRangeRequest request)
+	{
+		mixin(CM!(DeleteRangeResponse , RegistryBase.SERVICE));
+	}
+
+	void DeleteRange( DeleteRangeRequest request , void delegate(Status status , DeleteRangeResponse response) dele)
+	{
+		mixin(CMA!(DeleteRangeResponse , RegistryBase.SERVICE));
+	}
+
+
+	private:
+	Channel _channel;
+}
+
+class RegistryBase: GrpcService
+{
+	enum SERVICE  = "etcdserverpb.Registry";
+	string getModule()
+	{
+		return SERVICE;
+	}
+
+	Status Range(RangeRequest , ref RangeResponse){ return Status.OK; }
+	Status Put(PutRequest , ref PutResponse){ return Status.OK; }
+	Status DeleteRange(DeleteRangeRequest , ref DeleteRangeResponse){ return Status.OK; }
+
+	Status process(string method , GrpcStream stream)
+	{
+		switch(method)
+		{
+			mixin(SM!(RangeRequest , RangeResponse , "Range"));
+			mixin(SM!(PutRequest , PutResponse , "Put"));
+			mixin(SM!(DeleteRangeRequest , DeleteRangeResponse , "DeleteRange"));
+			mixin(NONE());
+		}
+	}
+}
+
+
 class WatchClient
 {
 	this(Channel channel)
@@ -89,9 +223,9 @@ class WatchClient
 		_channel = channel;
 	}
 
-	ClientReaderWriter!(WatchRequest ,WatchResponse) Watch(){
-		mixin(CM3!(WatchRequest , WatchResponse  , WatchBase.SERVICE));
-}
+	ClientReaderWriter!(WatchResponse ,WatchRequest) Watch(){
+		mixin(CM3!(WatchResponse , WatchRequest  , WatchBase.SERVICE));
+	}
 
 	private:
 	Channel _channel;
@@ -125,9 +259,9 @@ class LeaseClient
 		_channel = channel;
 	}
 
-	Status LeaseGrant( LeaseGrantRequest request , ref LeaseGrantResponse response)
+	LeaseGrantResponse LeaseGrant( LeaseGrantRequest request)
 	{
-		mixin(CM!(LeaseBase.SERVICE));
+		mixin(CM!(LeaseGrantResponse , LeaseBase.SERVICE));
 	}
 
 	void LeaseGrant( LeaseGrantRequest request , void delegate(Status status , LeaseGrantResponse response) dele)
@@ -135,9 +269,9 @@ class LeaseClient
 		mixin(CMA!(LeaseGrantResponse , LeaseBase.SERVICE));
 	}
 
-	Status LeaseRevoke( LeaseRevokeRequest request , ref LeaseRevokeResponse response)
+	LeaseRevokeResponse LeaseRevoke( LeaseRevokeRequest request)
 	{
-		mixin(CM!(LeaseBase.SERVICE));
+		mixin(CM!(LeaseRevokeResponse , LeaseBase.SERVICE));
 	}
 
 	void LeaseRevoke( LeaseRevokeRequest request , void delegate(Status status , LeaseRevokeResponse response) dele)
@@ -145,12 +279,12 @@ class LeaseClient
 		mixin(CMA!(LeaseRevokeResponse , LeaseBase.SERVICE));
 	}
 
-	ClientReaderWriter!(LeaseKeepAliveRequest ,LeaseKeepAliveResponse) LeaseKeepAlive(){
-		mixin(CM3!(LeaseKeepAliveRequest , LeaseKeepAliveResponse  , LeaseBase.SERVICE));
-}
-	Status LeaseTimeToLive( LeaseTimeToLiveRequest request , ref LeaseTimeToLiveResponse response)
+	ClientReaderWriter!(LeaseKeepAliveResponse ,LeaseKeepAliveRequest) LeaseKeepAlive(){
+		mixin(CM3!(LeaseKeepAliveResponse , LeaseKeepAliveRequest  , LeaseBase.SERVICE));
+	}
+	LeaseTimeToLiveResponse LeaseTimeToLive( LeaseTimeToLiveRequest request)
 	{
-		mixin(CM!(LeaseBase.SERVICE));
+		mixin(CM!(LeaseTimeToLiveResponse , LeaseBase.SERVICE));
 	}
 
 	void LeaseTimeToLive( LeaseTimeToLiveRequest request , void delegate(Status status , LeaseTimeToLiveResponse response) dele)
@@ -158,9 +292,9 @@ class LeaseClient
 		mixin(CMA!(LeaseTimeToLiveResponse , LeaseBase.SERVICE));
 	}
 
-	Status LeaseLeases( LeaseLeasesRequest request , ref LeaseLeasesResponse response)
+	LeaseLeasesResponse LeaseLeases( LeaseLeasesRequest request)
 	{
-		mixin(CM!(LeaseBase.SERVICE));
+		mixin(CM!(LeaseLeasesResponse , LeaseBase.SERVICE));
 	}
 
 	void LeaseLeases( LeaseLeasesRequest request , void delegate(Status status , LeaseLeasesResponse response) dele)
@@ -209,9 +343,9 @@ class ClusterClient
 		_channel = channel;
 	}
 
-	Status MemberAdd( MemberAddRequest request , ref MemberAddResponse response)
+	MemberAddResponse MemberAdd( MemberAddRequest request)
 	{
-		mixin(CM!(ClusterBase.SERVICE));
+		mixin(CM!(MemberAddResponse , ClusterBase.SERVICE));
 	}
 
 	void MemberAdd( MemberAddRequest request , void delegate(Status status , MemberAddResponse response) dele)
@@ -219,9 +353,9 @@ class ClusterClient
 		mixin(CMA!(MemberAddResponse , ClusterBase.SERVICE));
 	}
 
-	Status MemberRemove( MemberRemoveRequest request , ref MemberRemoveResponse response)
+	MemberRemoveResponse MemberRemove( MemberRemoveRequest request)
 	{
-		mixin(CM!(ClusterBase.SERVICE));
+		mixin(CM!(MemberRemoveResponse , ClusterBase.SERVICE));
 	}
 
 	void MemberRemove( MemberRemoveRequest request , void delegate(Status status , MemberRemoveResponse response) dele)
@@ -229,9 +363,9 @@ class ClusterClient
 		mixin(CMA!(MemberRemoveResponse , ClusterBase.SERVICE));
 	}
 
-	Status MemberUpdate( MemberUpdateRequest request , ref MemberUpdateResponse response)
+	MemberUpdateResponse MemberUpdate( MemberUpdateRequest request)
 	{
-		mixin(CM!(ClusterBase.SERVICE));
+		mixin(CM!(MemberUpdateResponse , ClusterBase.SERVICE));
 	}
 
 	void MemberUpdate( MemberUpdateRequest request , void delegate(Status status , MemberUpdateResponse response) dele)
@@ -239,9 +373,9 @@ class ClusterClient
 		mixin(CMA!(MemberUpdateResponse , ClusterBase.SERVICE));
 	}
 
-	Status MemberList( MemberListRequest request , ref MemberListResponse response)
+	MemberListResponse MemberList( MemberListRequest request)
 	{
-		mixin(CM!(ClusterBase.SERVICE));
+		mixin(CM!(MemberListResponse , ClusterBase.SERVICE));
 	}
 
 	void MemberList( MemberListRequest request , void delegate(Status status , MemberListResponse response) dele)

@@ -20,6 +20,16 @@ class NodeExtern
         loadValue();
     }
 
+    this(string reqKey,string key, ulong modifiedIndex, bool recursive = false)
+    {
+        _recursive = recursive;
+        _originKey = reqKey;
+        _key = getSafeKey(key);
+        _modifiedIndex = modifiedIndex;
+        _dir = false;
+        loadValue();
+    }
+
     void opAssign(S)(auto ref S ne) if (is(S == Unqual!(typeof(this))))
     {
         _originKey = ne._originKey;

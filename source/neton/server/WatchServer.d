@@ -19,7 +19,7 @@ import neton.store.Event;
 
 import neton.util.Future;
 
-import neton.v3api;
+import neton.rpcservice;
 import etcdserverpb.kv;
 import etcdserverpb.rpc;
 import etcdserverpb.rpcrpc;

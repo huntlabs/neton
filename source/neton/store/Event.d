@@ -46,6 +46,16 @@ class Event
         _refresh = false;
     }
 
+    this(EventAction action, string reqKey,string key, ulong modifiedIndex, bool recursive = false)
+    {
+
+        // logWarning("begin load value :",key );
+        _node = new NodeExtern(reqKey,key, modifiedIndex, recursive);
+        // logWarning("end load value :",key );
+        _action = action;
+        _refresh = false;
+    }
+
     void opAssign(S)(auto ref S e) if (is(S == Unqual!(typeof(this))))
     {
         _action = e._action;

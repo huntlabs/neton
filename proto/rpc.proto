@@ -31,6 +31,50 @@ service KV {
 
 }
 
+service Config {
+  // Range gets the keys in the range from the key-value store.
+  rpc Range(RangeRequest) returns (RangeResponse) {
+
+  }
+
+  // Put puts the given key into the key-value store.
+  // A put request increments the revision of the key-value store
+  // and generates one event in the event history.
+  rpc Put(PutRequest) returns (PutResponse) {
+
+  }
+
+  // DeleteRange deletes the given range from the key-value store.
+  // A delete request increments the revision of the key-value store
+  // and generates a delete event in the event history for every deleted key.
+  rpc DeleteRange(DeleteRangeRequest) returns (DeleteRangeResponse) {
+ 
+  }
+
+}
+
+service Registry {
+  // Range gets the keys in the range from the key-value store.
+  rpc Range(RangeRequest) returns (RangeResponse) {
+
+  }
+
+  // Put puts the given key into the key-value store.
+  // A put request increments the revision of the key-value store
+  // and generates one event in the event history.
+  rpc Put(PutRequest) returns (PutResponse) {
+
+  }
+
+  // DeleteRange deletes the given range from the key-value store.
+  // A delete request increments the revision of the key-value store
+  // and generates a delete event in the event history for every deleted key.
+  rpc DeleteRange(DeleteRangeRequest) returns (DeleteRangeResponse) {
+ 
+  }
+
+}
+
 service Watch {
   // Watch watches for events happening or that have happened. Both input and output
   // are streams; the input stream is for creating and canceling watchers and the output

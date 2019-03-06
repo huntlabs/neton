@@ -86,6 +86,13 @@ import neton.rpcservice.Command;
 
 class RocksdbStore
 {
+
+	private
+	{
+		Database _rocksdb;
+		Lessor _lessor;
+	}
+
 	this(ulong ID, Lessor l)
 	{
 		auto opts = new DBOptions;
@@ -146,7 +153,7 @@ class RocksdbStore
 
 	bool isDir(string key)
 	{
-		 key = getSafeKey(key);
+		key = getSafeKey(key);
 		auto value = getJsonValue(key);
 		if (value.type != JSON_TYPE.NULL)
 		{
@@ -230,7 +237,7 @@ class RocksdbStore
 
 	void Remove(string key, bool recursive = false)
 	{
-		 key = getSafeKey(key);
+		key = getSafeKey(key);
 		if (!recursive)
 			_rocksdb.removeString(key);
 		else
@@ -288,7 +295,7 @@ class RocksdbStore
 			{
 				error ~= nodePath;
 				error ~= "  is dir";
-				logError("set error : ",error,"  info: ",node);
+				logError("set error : ", error, "  info: ", node);
 				return false;
 			}
 		}
@@ -297,7 +304,7 @@ class RocksdbStore
 		if (p == string.init)
 		{
 			error = "the key is illegal";
-			logError("set error : ",error,"  info: ",p);
+			logError("set error : ", error, "  info: ", p);
 			return false;
 		}
 		auto j = getJsonValue(p);
@@ -305,7 +312,7 @@ class RocksdbStore
 		{
 			error ~= p;
 			error ~= " not is dir";
-			logError("set error : ",error,"  info: ",p);
+			logError("set error : ", error, "  info: ", p);
 			return false;
 		}
 
@@ -390,7 +397,8 @@ class RocksdbStore
 		{
 			if (_lessor !is null)
 			{
-				LeaseItem item = {Key:key};
+				LeaseItem item = {Key:
+				key};
 				_lessor.Attach(leaseid, [item]);
 			}
 
@@ -414,7 +422,8 @@ class RocksdbStore
 		{
 			if (_lessor !is null)
 			{
-				LeaseItem item = {Key:key};
+				LeaseItem item = {Key:
+				key};
 				_lessor.Detach(leaseid, [item]);
 			}
 
@@ -538,14 +547,26 @@ class RocksdbStore
 
 	PutResponse put(RpcRequest req)
 	{
-		auto nodePath = getSafeKey(req.Key);
+		string nodePath;
+		if(req.CMD == RpcReqCommand.ConfigPutRequest)
+		{
+			nodePath = getConfigKey(req.Key);
+		}
+		else if(req.CMD == RpcReqCommand.RegistryPutRequest)
+		{
+			nodePath = getRegistryKey(req.Key);
+		}
+		else
+		{
+			nodePath = getSafeKey(req.Key);
+		}
 		// Set new value
 		string error;
 		if (req.LeaseID != 0)
 		{
 			if (attachToLease(nodePath, req.LeaseID))
 			{
-				auto ok = set(req.Key, req.Value, error, req.LeaseID);
+				auto ok = set(nodePath, req.Value, error, req.LeaseID);
 				if (ok)
 				{
 					PutResponse respon = new PutResponse();
@@ -559,7 +580,7 @@ class RocksdbStore
 		}
 		else
 		{
-			auto ok = set(req.Key, req.Value, error);
+			auto ok = set(nodePath, req.Value, error);
 			if (ok)
 			{
 				PutResponse respon = new PutResponse();
@@ -576,7 +597,21 @@ class RocksdbStore
 	DeleteRangeResponse deleteRange(RpcRequest req)
 	{
 		DeleteRangeResponse respon = new DeleteRangeResponse();
-		auto nodePath = getSafeKey(req.Key);
+		
+		string nodePath;
+		if(req.CMD == RpcReqCommand.ConfigDeleteRangeRequest)
+		{
+			nodePath = getConfigKey(req.Key);
+		}
+		else if(req.CMD == RpcReqCommand.RegistryDeleteRangeRequest)
+		{
+			nodePath = getRegistryKey(req.Key);
+		}
+		else
+		{
+			nodePath = getSafeKey(req.Key);
+		}
+
 		if (Exsit(nodePath))
 		{
 			Remove(nodePath, true);
@@ -672,7 +707,4 @@ protected:
 		SetValue(key, jsonValue);
 	}
 
-private:
-	Database _rocksdb;
-	Lessor _lessor;
 }

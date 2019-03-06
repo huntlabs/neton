@@ -8,7 +8,7 @@ import std.getopt;
 import std.exception;
 import std.stdio;
 import neton.server.NetonConfig;
-import neton.v3api;
+import neton.rpcservice;
 import grpc;
 import hunt.util.DateTime;
 
@@ -58,6 +58,8 @@ int main(string[] argv)
 	Server server = new Server();
 	server.listen(host , port);
 	server.register( new KVService());
+	server.register( new ConfigService());
+	server.register( new RegistryService());
 	server.register( new WatchService());
 	server.register( new LeaseService());
 	server.start();
