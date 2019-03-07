@@ -11,11 +11,13 @@ import std.uni;
 import std.algorithm.searching;
 import neton.store.Util;
 
-import etcdserverpb.rpc;
-import etcdserverpb.kv : KeyValue;
+import neton.protocol.neton;
+import neton.protocol.netonrpc;
 import neton.rpcservice.Command;
 
 import neton.lease;
+
+alias Event = neton.store.Event.Event;
 
 struct TTLOptionSet
 {

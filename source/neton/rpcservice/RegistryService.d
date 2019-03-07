@@ -1,8 +1,8 @@
 module neton.rpcservice.RegistryService;
 
-import etcdserverpb.kv;
-import etcdserverpb.rpc;
-import etcdserverpb.rpcrpc;
+import neton.protocol.neton;
+import neton.protocol.neton;
+import neton.protocol.netonrpc;
 import grpc;
 import hunt.logging;
 import neton.server.NetonRpcServer;

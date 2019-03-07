@@ -36,9 +36,9 @@ import neton.store.Util;
 import std.algorithm.mutation;
 
 import neton.rpcservice;
-import etcdserverpb.kv;
-import etcdserverpb.rpc;
-import etcdserverpb.rpcrpc;
+import neton.protocol.neton;
+import neton.protocol.neton;
+import neton.protocol.netonrpc;
 import grpc;
 
 import neton.util.Future;

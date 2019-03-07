@@ -19,8 +19,8 @@ import rocksdb.options;
 
 import neton.store.Util;
 import neton.lease;
-import etcdserverpb.rpc;
-import etcdserverpb.kv;
+import neton.protocol.neton;
+import neton.protocol.neton;
 import neton.rpcservice.Command;
 
 /*
@@ -597,7 +597,7 @@ class RocksdbStore
 	DeleteRangeResponse deleteRange(RpcRequest req)
 	{
 		DeleteRangeResponse respon = new DeleteRangeResponse();
-		
+
 		string nodePath;
 		if(req.CMD == RpcReqCommand.ConfigDeleteRangeRequest)
 		{

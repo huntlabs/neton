@@ -20,9 +20,9 @@ import neton.store.Event;
 import neton.util.Future;
 
 import neton.rpcservice;
-import etcdserverpb.kv;
-import etcdserverpb.rpc;
-import etcdserverpb.rpcrpc;
+import neton.protocol.neton;
+import neton.protocol.neton;
+import neton.protocol.netonrpc;
 import grpc;
 
 class WatchServer
@@ -106,16 +106,16 @@ class WatchServer
 						auto es = w.events();
 						foreach (e; es)
 						{
-							auto event = new etcdserverpb.kv.Event();
+							auto event = new neton.protocol.neton.Event();
 							auto kv = new KeyValue();
 							kv.key = cast(ubyte[])((e.nodeOriginKey()));
 							kv.value = cast(ubyte[])(e.rpcValue());
 							event.kv = kv;
 							event.prevKv = kv;
 							if (e.action() == EventAction.Delete)
-								event.type = etcdserverpb.kv.Event.EventType.DELETE;
+								event.type = neton.protocol.neton.Event.EventType.DELETE;
 							else
-								event.type = etcdserverpb.kv.Event.EventType.PUT;
+								event.type = neton.protocol.neton.Event.EventType.PUT;
 							respon.events ~= event;
 							logInfo("--- -> notify event key: ", e.nodeOriginKey(),
 									" value : ", e.rpcValue(), " type :", e.action());
