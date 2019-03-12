@@ -239,7 +239,8 @@ class Lessor
 
 		if (id in this.leaseMap)
 		{
-			throw new Exception("ErrLeaseExists");
+			logWarning("------LeaseID Exists------ : ",id);
+			return this.leaseMap[id];
 			// return null;
 		}
 

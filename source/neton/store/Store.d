@@ -247,7 +247,7 @@ class Store : StoreInter
     {
         if (req.CMD == RpcReqCommand.RangeRequest)
         {
-            auto e = new Event(EventAction.Get,req.Key, req.Key, 0);
+            auto e = new Event(EventAction.Get, req.Key, req.Key, 0);
             e.setNetonIndex(_currentIndex);
 
             RangeResponse respon = new RangeResponse();
@@ -257,7 +257,7 @@ class Store : StoreInter
         }
         else if (req.CMD == RpcReqCommand.ConfigRangeRequest)
         {
-            auto e = new Event(EventAction.Get,req.Key, getConfigKey(req.Key), 0);
+            auto e = new Event(EventAction.Get, req.Key, getConfigKey(req.Key), 0);
             e.setNetonIndex(_currentIndex);
 
             RangeResponse respon = new RangeResponse();
@@ -267,7 +267,7 @@ class Store : StoreInter
         }
         else if (req.CMD == RpcReqCommand.RegistryRangeRequest)
         {
-            auto e = new Event(EventAction.Get,req.Key, getRegistryKey(req.Key), 0);
+            auto e = new Event(EventAction.Get, req.Key, getRegistryKey(req.Key), 0);
             e.setNetonIndex(_currentIndex);
 
             RangeResponse respon = new RangeResponse();
@@ -280,30 +280,35 @@ class Store : StoreInter
 
     PutResponse put(RpcRequest req)
     {
-        auto safeKey = getSafeKey(req.Key);
-        if (isRemained(safeKey))
+        if (req.CMD == RpcReqCommand.PutRequest)
         {
-            return null;
+            auto safeKey = getSafeKey(req.Key);
+
+            if (isRemained(safeKey))
+            {
+                logErrorf("%s is remained !",req.Key);
+                return null;
+            }
         }
 
         auto respon = _kvStore.put(req);
         string nodePath;
-		if(req.CMD == RpcReqCommand.ConfigPutRequest)
-		{
-			nodePath = getConfigKey(req.Key);
-		}
-		else if(req.CMD == RpcReqCommand.RegistryPutRequest)
-		{
-			nodePath = getRegistryKey(req.Key);
-		}
-		else
-		{
-			nodePath = getSafeKey(req.Key);
-		}
+        if (req.CMD == RpcReqCommand.ConfigPutRequest)
+        {
+            nodePath = getConfigKey(req.Key);
+        }
+        else if (req.CMD == RpcReqCommand.RegistryPutRequest)
+        {
+            nodePath = getRegistryKey(req.Key);
+        }
+        else
+        {
+            nodePath = getSafeKey(req.Key);
+        }
         if (respon !is null)
         {
             _currentIndex++;
-            auto e = new Event(EventAction.Set,req.Key, nodePath, _currentIndex);
+            auto e = new Event(EventAction.Set, req.Key, nodePath, _currentIndex);
             e.setNetonIndex(_currentIndex);
 
             _watcherHub.notify(e);
@@ -315,19 +320,19 @@ class Store : StoreInter
     {
         _currentIndex++;
         string nodePath;
-		if(req.CMD == RpcReqCommand.ConfigDeleteRangeRequest)
-		{
-			nodePath = getConfigKey(req.Key);
-		}
-		else if(req.CMD == RpcReqCommand.RegistryDeleteRangeRequest)
-		{
-			nodePath = getRegistryKey(req.Key);
-		}
-		else
-		{
-			nodePath = getSafeKey(req.Key);
-		}
-        auto e = new Event(EventAction.Delete, req.Key,nodePath, _currentIndex);
+        if (req.CMD == RpcReqCommand.ConfigDeleteRangeRequest)
+        {
+            nodePath = getConfigKey(req.Key);
+        }
+        else if (req.CMD == RpcReqCommand.RegistryDeleteRangeRequest)
+        {
+            nodePath = getRegistryKey(req.Key);
+        }
+        else
+        {
+            nodePath = getSafeKey(req.Key);
+        }
+        auto e = new Event(EventAction.Delete, req.Key, nodePath, _currentIndex);
         e.setNetonIndex(_currentIndex);
         {
             auto respon = _kvStore.deleteRange(req);
@@ -336,7 +341,7 @@ class Store : StoreInter
             kv.value = cast(ubyte[])(e.rpcValue());
             respon.prevKvs ~= kv;
 
-            if(respon.deleted > 0)
+            if (respon.deleted > 0)
                 _watcherHub.notify(e);
 
             return respon;
