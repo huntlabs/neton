@@ -31,8 +31,9 @@ class PeerServers
 
     public bool addPeer(ulong ID, string data)
 	{
-		if (ID in _clients)
-			return false;
+		logWarning("beging do connect : ",data);
+		// if (ID in _clients)
+		// 	return false;
 
 		auto client = new NodeClient(this._ID, ID);
 		string[] hostport = split(data, ":");

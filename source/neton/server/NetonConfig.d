@@ -100,6 +100,14 @@ class NetonConfig
         return _self;
     }
 
+    PeerConf getConf(ulong id)
+    {
+        foreach(conf; _peersConf) {
+            if(conf.id == id)
+                return conf;
+        }
+        return PeerConf.init;
+    }
 private:
     JSONValue _jconf;
     PeerConf _self;
