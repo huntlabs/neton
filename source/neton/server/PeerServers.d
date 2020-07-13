@@ -29,7 +29,7 @@ class PeerServers
 		_ID = id;
 	}
 
-    public bool addPeer(ulong ID, string data)
+    bool addPeer(ulong ID, string data)
 	{
 		logWarning("beging do connect : ",data);
 		// if (ID in _clients)
@@ -37,7 +37,7 @@ class PeerServers
 
 		auto client = new NodeClient(this._ID, ID);
 		string[] hostport = split(data, ":");
-		client.connect(hostport[0], to!int(hostport[1]), (Result!NetSocket result) {
+		client.connect(hostport[0], to!int(hostport[1]), (AsyncResult!Connection result) {
 			if (result.failed())
 			{
 				logWarning("connect fail --> : ", data);
@@ -55,7 +55,7 @@ class PeerServers
 		return true;
 	}
 
-	public bool delPeer(ulong ID)
+	bool delPeer(ulong ID)
 	{
 		if (ID !in _clients)
 			return false;
@@ -67,7 +67,7 @@ class PeerServers
 		return true;
 	}
 
-	public void send(Message[] msg)
+	void send(Message[] msg)
 	{
 		foreach (m; msg)
 			_clients[m.To].write(m);

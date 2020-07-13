@@ -162,11 +162,11 @@ class Event
         if (this.error.length > 0)
             return this.error;
         JSONValue nodeValue = this.getNodeValue();
-        if (nodeValue.type == JSONType.OBJECT)
+        if (nodeValue.type == JSONType.object)
         {
             if ("value" in nodeValue)
             {
-                if (nodeValue["value"].type == JSONType.STRING)
+                if (nodeValue["value"].type == JSONType.string)
                     return nodeValue["value"].str;
                 else
                     return nodeValue["value"].toString;
@@ -183,12 +183,12 @@ class Event
         if (this.error.length > 0)
             return null;
         JSONValue nodeValue = this.getNodeValue();
-        if(nodeValue.type == JSONType.NULL)
+        if(nodeValue.type == JSONType.null_)
             return null;
         if (isDir(nodeValue))
         {
             nodeValue = nodeValue["nodes"];
-            if (nodeValue.type == JSONType.OBJECT)
+            if (nodeValue.type == JSONType.object)
             {
                 if (!isDir(nodeValue))
                 {
@@ -196,7 +196,7 @@ class Event
                     kv.key = cast(ubyte[])(nodeValue["key"].str);
                     if ("value" in nodeValue)
                     {
-                        if (nodeValue["value"].type == JSONType.STRING)
+                        if (nodeValue["value"].type == JSONType.string)
                             kv.value = cast(ubyte[])(nodeValue["value"].str);
                         else
                             kv.value = cast(ubyte[])(nodeValue["value"].toString);
@@ -204,7 +204,7 @@ class Event
                     kvs ~= kv;
                 }
             }
-            else if (nodeValue.type == JSONType.ARRAY)
+            else if (nodeValue.type == JSONType.array)
             {
                 foreach (item; nodeValue.array)
                 {
@@ -214,7 +214,7 @@ class Event
                         kv.key = cast(ubyte[])(item["key"].str);
                         if ("value" in item)
                         {
-                            if (item["value"].type == JSONType.STRING)
+                            if (item["value"].type == JSONType.string)
                                 kv.value = cast(ubyte[])(item["value"].str);
                             else
                                 kv.value = cast(ubyte[])(item["value"].toString);
@@ -230,7 +230,7 @@ class Event
             kv.key = cast(ubyte[])(nodeValue["key"].str);
             if ("value" in nodeValue)
             {
-                if (nodeValue["value"].type == JSONType.STRING)
+                if (nodeValue["value"].type == JSONType.string)
                     kv.value = cast(ubyte[])(nodeValue["value"].str);
                 else
                     kv.value = cast(ubyte[])(nodeValue["value"].toString);
@@ -243,7 +243,7 @@ class Event
 
     bool isDir(JSONValue data)
     {
-        if (data.type != JSONType.OBJECT)
+        if (data.type != JSONType.object)
             return false;
         if ("dir" in data && data["dir"].str == "true")
             return true;

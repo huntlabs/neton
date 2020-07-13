@@ -11,6 +11,7 @@ import hunt.raft;
 import hunt.net;
 import hunt.event.timer.Common;
 import hunt.util.Timer;
+import hunt.event.EventLoop;
 import hunt.event.timer;
 
 import neton.server.NetonRpcServer;
@@ -30,10 +31,15 @@ class WatchServer
 	private __gshared WatchServer _gserver;
     private Watcher[] _watchers;
     private Mutex _mutex;
+	private EventLoop _eventLoop;
+	private ITimer _timer;
 
     private this()
     {
         _mutex = new Mutex();
+		_eventLoop = new EventLoop();
+        _timer = new Timer(_eventLoop, 100.msecs).onTick(&scanWatchers);
+		_eventLoop.run(-1);
     }
 
 	static WatchServer instance()
@@ -43,13 +49,12 @@ class WatchServer
 		return _gserver;
 	}
 
-    public void run()
+    void run()
     {
-        new Timer(NetUtil.defaultEventLoopGroup().nextLoop(), 100.msecs).onTick(
-				&scanWatchers).start();
+        _timer.start();
     }
 
-    public void addWatcher(ref Watcher w)
+    void addWatcher(ref Watcher w)
     {
         _mutex.lock();
 		scope (exit)
@@ -58,7 +63,7 @@ class WatchServer
         _watchers ~= w;
     }
 
-    public void removeWatcher(size_t hash)
+    void removeWatcher(size_t hash)
 	{
         _mutex.lock();
 		scope (exit)

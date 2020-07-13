@@ -18,12 +18,12 @@ class ServerHandler
 
     enum PACK_HEAD_LEN = 4;
 
-    this(NetSocket sock, MessageReceiver receiver)
+    this(MessageReceiver receiver)
     {
-        this.sock = sock;
+        // this.sock = sock;
         this.receiver = receiver;
-        sock.handler((in ubyte[] data) { onRead(data); });
-        sock.closeHandler(() { onClose(); });
+        // sock.handler((in ubyte[] data) { onRead(data); });
+        // sock.closeHandler(() { onClose(); });
     }
 
     void onRead(in ubyte[] data)
@@ -90,7 +90,7 @@ class ServerHandler
 
     }
 
-    NetSocket sock;
+    // NetSocket sock;
 
     int msgLen;
     ubyte[] buffer;

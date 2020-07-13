@@ -60,7 +60,7 @@ class NetonConfig
 
     void praseConf()
     {
-        if (_jconf.type == JSON_TYPE.OBJECT)
+        if (_jconf.type == JSONType.object)
         {
             if ("self" in _jconf)
             {

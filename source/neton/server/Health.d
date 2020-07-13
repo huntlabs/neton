@@ -26,12 +26,12 @@ class Health
     {
         try
         {
-            if (JSON_TYPE.OBJECT == _value.type)
+            if (JSONType.object == _value.type)
             {
                 if ("check" in _value)
                 {
                     auto checkObj = _value["check"];
-                    if (JSON_TYPE.OBJECT == checkObj.type)
+                    if (JSONType.object == checkObj.type)
                     {
                         if ("interval" in checkObj)
                         {

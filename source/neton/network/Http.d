@@ -38,12 +38,12 @@ enum MAX_HTTP_REQUEST_BUFF = 4096;
 
 class HttpBase
 {
-	this(NetSocket sock, NetonHttpServer netonServer)
+	this(Connection connection, NetonHttpServer netonServer)
 	{
-		this._sock = sock;
+		this._sock = connection;
 		this._netonServer = netonServer;
-		sock.handler((in ubyte[] data) { onRead(data); });
-		sock.closeHandler(() { onClose(); });
+		// sock.handler((in ubyte[] data) { onRead(data); });
+		// sock.closeHandler(() { onClose(); });
 
 	}
 
@@ -134,7 +134,7 @@ class HttpBase
 	bool do_response(string strbody)
 	{
 		auto res = format(
-				"HTTP/1.1 200 OK\r\nServer: kiss\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+				"HTTP/1.1 200 OK\r\nServer: Hunt\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
 				strbody.length, strbody);
 		_sock.write(res);
 
@@ -402,6 +402,6 @@ class HttpBase
 		private ubyte[] _httpRecvBuf;
 
 		// ubyte[]         buffer;
-		private NetSocket _sock;
+		private Connection _sock;
 		private NetonHttpServer _netonServer;
 	}

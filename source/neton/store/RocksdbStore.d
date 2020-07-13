@@ -107,7 +107,7 @@ class RocksdbStore
 	void init(Lessor lessor = null)
 	{
 		auto j = getJsonValue("/");
-		if (j.type == JSON_TYPE.NULL)
+		if (j.type == JSONType.null_)
 		{
 			JSONValue dirvalue;
 			dirvalue["dir"] = "true";
@@ -120,7 +120,7 @@ class RocksdbStore
 		if (lessor !is null)
 		{
 			auto leases = getJsonValue(LEASE_PREFIX[0 .. $ - 1]);
-			if (leases.type != JSONType.NULL)
+			if (leases.type != JSONType.null_)
 			{
 				auto lease_keys = leases["children"].str;
 				if (lease_keys.length > 0)
@@ -131,7 +131,7 @@ class RocksdbStore
 						if (leaseID.length != 0)
 						{
 							auto leaseItem = getJsonValue(leaseID);
-							if (leaseItem.type != JSONType.NULL)
+							if (leaseItem.type != JSONType.null_)
 							{
 								Lease l = new Lease();
 								l.ID = leaseItem["id"].integer;
@@ -155,7 +155,7 @@ class RocksdbStore
 	{
 		key = getSafeKey(key);
 		auto value = getJsonValue(key);
-		if (value.type != JSON_TYPE.NULL)
+		if (value.type != JSONType.null_)
 		{
 			if ("dir" in value)
 			{
@@ -168,7 +168,7 @@ class RocksdbStore
 
 	bool Exsit(string key)
 	{
-		return getJsonValue(key).type != JSON_TYPE.NULL;
+		return getJsonValue(key).type != JSONType.null_;
 	}
 
 	//递归创建目录
@@ -202,7 +202,7 @@ class RocksdbStore
 		}
 
 		auto j = getJsonValue(parent);
-		if (j.type != JSON_TYPE.NULL)
+		if (j.type != JSONType.null_)
 		{
 			auto childs = j["children"].str;
 			auto segments = split(childs, ";");
@@ -243,7 +243,7 @@ class RocksdbStore
 		else
 		{
 			auto j = getJsonValue(key);
-			if (j.type == JSON_TYPE.OBJECT && j["dir"].str == "true")
+			if (j.type == JSONType.object && j["dir"].str == "true")
 			{
 				auto children = j["children"].str();
 				auto segments = split(children, ";");
@@ -289,7 +289,7 @@ class RocksdbStore
 		//不能是目录
 		auto nodePath = getSafeKey(originKey);
 		auto node = getJsonValue(nodePath);
-		if (node.type == JSON_TYPE.OBJECT && "dir" in node)
+		if (node.type == JSONType.object && "dir" in node)
 		{
 			if (node["dir"].str == "true")
 			{
@@ -308,7 +308,7 @@ class RocksdbStore
 			return false;
 		}
 		auto j = getJsonValue(p);
-		if (j.type != JSON_TYPE.NULL && j["dir"].str != "true")
+		if (j.type != JSONType.null_ && j["dir"].str != "true")
 		{
 			error ~= p;
 			error ~= " not is dir";
@@ -325,7 +325,7 @@ class RocksdbStore
 		path = getSafeKey(path);
 		//目录或文件存在
 		auto node = getJsonValue(path);
-		if (node.type != JSON_TYPE.NULL)
+		if (node.type != JSONType.null_)
 		{
 			error ~= path;
 			error ~= " is exist";
@@ -340,7 +340,7 @@ class RocksdbStore
 			return false;
 		}
 		auto j = getJsonValue(p);
-		if (j.type != JSON_TYPE.NULL && j["dir"].str != "true")
+		if (j.type != JSONType.null_ && j["dir"].str != "true")
 		{
 			error ~= p;
 			error ~= " not is dir";
@@ -360,7 +360,7 @@ class RocksdbStore
 				return null;
 
 			auto lease = getJsonValue(LEASE_PREFIX ~ leaseid.to!string);
-			if (lease.type == JSONType.NULL)
+			if (lease.type == JSONType.null_)
 			{
 				JSONValue newLease;
 				newLease["dir"] = "false";
@@ -393,7 +393,7 @@ class RocksdbStore
 	bool attachToLease(string key, long leaseid)
 	{
 		auto lease = getJsonValue(LEASE_PREFIX ~ leaseid.to!string);
-		if (lease.type != JSONType.NULL)
+		if (lease.type != JSONType.null_)
 		{
 			if (_lessor !is null)
 			{
@@ -418,7 +418,7 @@ class RocksdbStore
 	bool detachFromLease(string key, long leaseid)
 	{
 		auto lease = getJsonValue(LEASE_PREFIX ~ leaseid.to!string);
-		if (lease.type != JSONType.NULL)
+		if (lease.type != JSONType.null_)
 		{
 			if (_lessor !is null)
 			{
@@ -446,7 +446,7 @@ class RocksdbStore
 	bool foreverKey(string key)
 	{
 		auto value = getJsonValue(key);
-		if (value.type != JSONType.NULL)
+		if (value.type != JSONType.null_)
 		{
 			value["leaseID"] = long.init;
 			SetValue(key, value.toString);
@@ -458,7 +458,7 @@ class RocksdbStore
 	long generateLeaseID()
 	{
 		auto value = getJsonValue(LEASE_GEN_ID_PREFIX);
-		if (value.type != JSONType.NULL)
+		if (value.type != JSONType.null_)
 		{
 			return value["ID"].integer + 1;
 		}
@@ -470,7 +470,7 @@ class RocksdbStore
 	{
 		auto leaseItem = getJsonValue(LEASE_PREFIX ~ leaseid.to!string);
 		LeaseTimeToLiveResponse respon = new LeaseTimeToLiveResponse();
-		if (leaseItem.type != JSONType.NULL)
+		if (leaseItem.type != JSONType.null_)
 		{
 			respon.ID = leaseid;
 			auto remainTTL = (leaseItem["create_time"].integer + leaseItem["ttl"].integer - time());
@@ -493,7 +493,7 @@ class RocksdbStore
 	LeaseLeasesResponse leaseLeases()
 	{
 		auto leases = getJsonValue(LEASE_PREFIX[0 .. $ - 1]);
-		if (leases.type != JSONType.NULL)
+		if (leases.type != JSONType.null_)
 		{
 			auto lease_keys = leases["children"].str;
 			LeaseLeasesResponse response = new LeaseLeasesResponse();
@@ -505,7 +505,7 @@ class RocksdbStore
 					if (leaseID.length != 0)
 					{
 						auto leaseItem = getJsonValue(leaseID);
-						if (leaseItem.type != JSONType.NULL)
+						if (leaseItem.type != JSONType.null_)
 						{
 							LeaseStatus ls = new LeaseStatus();
 							ls.ID = leaseItem["id"].integer;
@@ -527,7 +527,7 @@ class RocksdbStore
 			if (newTTL > 0)
 			{
 				auto lease = getJsonValue(LEASE_PREFIX ~ req.LeaseID.to!string);
-				if (lease.type != JSONType.NULL)
+				if (lease.type != JSONType.null_)
 				{
 					lease["ttl"] = newTTL;
 					lease["create_time"] = time();
@@ -665,7 +665,7 @@ protected:
 		if (pkey != string.init)
 		{
 			auto pnode = getJsonValue(pkey);
-			if (pnode.type == JSON_TYPE.OBJECT && "children" in pnode)
+			if (pnode.type == JSONType.object && "children" in pnode)
 			{
 				auto children = pnode["children"].str;
 				auto segments = split(children, ";");

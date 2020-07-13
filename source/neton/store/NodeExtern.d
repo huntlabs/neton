@@ -77,7 +77,7 @@ class NodeExtern
                 JSONValue res;
 
                 JSONValue node = Store.instance().getJsonValue(_key);
-                if (node.type != JSON_TYPE.NULL)
+                if (node.type != JSONType.null_)
                 {
                     res["key"] = _originKey;
                     auto dir = node["dir"].str == "true" ? true : false;
@@ -110,7 +110,7 @@ class NodeExtern
                             {
                                 JSONValue sub;
                                 auto j = Store.instance().getJsonValue(subkey);
-                                if (j.type != JSON_TYPE.NULL)
+                                if (j.type != JSONType.null_)
                                 {
                                     sub["key"] = j["key"].str;
                                     sub["dir"] = j["dir"].str;
@@ -142,7 +142,7 @@ class NodeExtern
             }
 
             auto node = _value;
-            if (node.type == JSON_TYPE.OBJECT && "dir" in node)
+            if (node.type == JSONType.object && "dir" in node)
                 _dir = node["dir"].str == "true" ? true : false;
 
         }
@@ -158,7 +158,7 @@ class NodeExtern
         JSONValue res;
         res["key"] = key;
         JSONValue node = Store.instance().getJsonValue(key);
-        if (node.type != JSON_TYPE.NULL)
+        if (node.type != JSONType.null_)
         {
             auto dir = node["dir"].str == "true" ? true : false;
             res["dir"] = node["dir"].str;
