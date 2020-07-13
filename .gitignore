@@ -12,3 +12,4 @@ neton-test-*
 *.obj
 *.lst
 dub.selections.json
+neton

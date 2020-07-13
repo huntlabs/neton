@@ -2,22 +2,18 @@
 
 Distributed reliable key-value store for the most critical data of a distributed system, like zookeeper and etcd.
 
+## Get ready
+Install the rocksdb development lib 
+```sh
+$ sudo apt-get install zstd
+$ sudo apt-get install librocksdb-dev
+```
 
-# Dependencies
-
-raft lib @ https://github.com/huntlabs/raft
-
-network dreactor lib @ https://github.com/zhangyuchun/dreactor
-
-A D binding to rocksdb @ https://github.com/b1naryth1ef/rocksdb
-
-RocksDB lib @ https://github.com/facebook/rocksdb
-
-# Api
+## API
 
 *the neton  [api](Documentation/api.md)*
 
-# Start
+## Start
 
 ./restart.sh  will delete snap & entry , recreate distributed server.
 
