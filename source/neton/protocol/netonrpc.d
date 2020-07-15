@@ -68,7 +68,7 @@ class KVBase: GrpcService
 	Status Put(PutRequest , ref PutResponse){ return Status.OK; }
 	Status DeleteRange(DeleteRangeRequest , ref DeleteRangeResponse){ return Status.OK; }
 
-	Status process(string method , GrpcStream stream)
+	Status process(string method , GrpcStream stream, ubyte[] complete)
 	{
 		switch(method)
 		{
@@ -135,7 +135,7 @@ class ConfigBase: GrpcService
 	Status Put(PutRequest , ref PutResponse){ return Status.OK; }
 	Status DeleteRange(DeleteRangeRequest , ref DeleteRangeResponse){ return Status.OK; }
 
-	Status process(string method , GrpcStream stream)
+	Status process(string method , GrpcStream stream, ubyte[] complete)
 	{
 		switch(method)
 		{
@@ -202,7 +202,7 @@ class RegistryBase: GrpcService
 	Status Put(PutRequest , ref PutResponse){ return Status.OK; }
 	Status DeleteRange(DeleteRangeRequest , ref DeleteRangeResponse){ return Status.OK; }
 
-	Status process(string method , GrpcStream stream)
+	Status process(string method , GrpcStream stream, ubyte[] complete)
 	{
 		switch(method)
 		{
@@ -240,7 +240,7 @@ class WatchBase: GrpcService
 
 	Status Watch(ServerReaderWriter!(WatchRequest , WatchResponse)){ return Status.OK; }
 
-	Status process(string method , GrpcStream stream)
+	Status process(string method , GrpcStream stream, ubyte[] complete)
 	{
 		switch(method)
 		{
@@ -320,7 +320,7 @@ class LeaseBase: GrpcService
 	Status LeaseTimeToLive(LeaseTimeToLiveRequest , ref LeaseTimeToLiveResponse){ return Status.OK; }
 	Status LeaseLeases(LeaseLeasesRequest , ref LeaseLeasesResponse){ return Status.OK; }
 
-	Status process(string method , GrpcStream stream)
+	Status process(string method , GrpcStream stream, ubyte[] complete)
 	{
 		switch(method)
 		{
@@ -400,7 +400,7 @@ class ClusterBase: GrpcService
 	Status MemberUpdate(MemberUpdateRequest , ref MemberUpdateResponse){ return Status.OK; }
 	Status MemberList(MemberListRequest , ref MemberListResponse){ return Status.OK; }
 
-	Status process(string method , GrpcStream stream)
+	Status process(string method , GrpcStream stream, ubyte[] complete)
 	{
 		switch(method)
 		{
